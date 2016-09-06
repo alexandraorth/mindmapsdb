@@ -1,0 +1,5 @@
+1) MM does not support custom data types. We do not support JDBC types STRUCT, SQLXML, JAVA_OBJECT, DATALINK, BIT, ARRAY
+
+2) JDBC type TIMESTAMP is converted to String
+
+3) SQL migrator will not migrate
