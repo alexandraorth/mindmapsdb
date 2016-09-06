@@ -46,6 +46,8 @@ class GraqlSession {
     private final MindmapsGraph graph;
     private final Reasoner reasoner;
 
+    private boolean queryCancelled = false;
+
     // All requests are run within a single thread, so they always happen in a single thread-bound transaction
     private final ExecutorService queryExecutor = Executors.newSingleThreadExecutor();
 
@@ -96,6 +98,8 @@ class GraqlSession {
                 } else if (query instanceof DeleteQuery) {
                     executeDeleteQuery((DeleteQuery) query);
                     reasoner.linkConceptTypes();
+                } else if (query instanceof AggregateQuery) {
+                    results = streamAggregateQuery((AggregateQuery) query);
                 } else if (query instanceof ComputeQuery) {
                     Object computeResult = ((ComputeQuery) query).execute(graph);
                     if (computeResult instanceof Map) {
@@ -108,7 +112,13 @@ class GraqlSession {
                     errorMessage = "Unrecognized query " + query;
                 }
 
-                results.forEach(this::sendQueryResult);
+                // Return results unless query is cancelled
+                results.forEach(result -> {
+                    if (queryCancelled) return;
+                    sendQueryResult(result);
+                });
+                queryCancelled = false;
+
             } catch (IllegalArgumentException | IllegalStateException | InvalidConceptTypeException e) {
                 errorMessage = e.getMessage();
             } catch (Throwable e) {
@@ -122,6 +132,10 @@ class GraqlSession {
                 }
             }
         });
+    }
+
+    void stopQuery() {
+        queryCancelled = true;
     }
 
     /**
@@ -186,6 +200,13 @@ class GraqlSession {
      */
     private void executeDeleteQuery(DeleteQuery query) {
         query.execute();
+    }
+
+    /**
+     * Return a stream containing the single aggregate query result
+     */
+    private Stream<String> streamAggregateQuery(AggregateQuery query) {
+        return Stream.of(query.execute().toString());
     }
 
     /**
