@@ -251,6 +251,8 @@ public class QueryParser {
         registerAggregate("min", args -> min((String) args.get(0)));
         registerAggregate("average", args -> average((String) args.get(0)));
         registerAggregate("median", args -> median((String) args.get(0)));
+        registerAggregate("getvalue", args -> getvalue((String) args.get(0)));
+        registerAggregate("getid", args -> getid((String) args.get(0)));
 
         registerAggregate("group", args -> {
             if (args.size() < 2) {

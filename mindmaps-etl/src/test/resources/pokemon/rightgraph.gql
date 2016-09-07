@@ -1,0 +1,43 @@
+insert
+
+"pokemon" isa entity-type
+    plays-role ancestor
+    plays-role descendant
+    plays-role pokemon-with-classification
+    has-resource pokedex-no
+    has-resource info
+    has-resource height
+    has-resource weight
+    is-abstract;
+
+"big-pokemon" ako pokemon;
+"small-pokemon" ako pokemon;
+
+"pokemon-classification" isa entity-type
+    plays-role classification-of-pokemon
+    plays-role defending-classification
+    plays-role attacking-classification;
+
+"pokedex-no" isa resource-type, datatype long;
+"info" isa resource-type, datatype string;
+"height" isa resource-type, datatype long;
+"weight" isa resource-type, datatype long;
+
+"evolution" isa relation-type
+    has-role ancestor
+    has-role descendant;
+"ancestor" isa role-type;
+"descendant" isa role-type;
+
+"has-classification" isa relation-type
+    has-role pokemon-with-classification
+    has-role classification-of-pokemon;
+"pokemon-with-classification" isa role-type;
+"classification-of-pokemon" isa role-type;
+
+"super-effective" isa relation-type
+    has-role defending-classification
+    has-role attacking-classification;
+"defending-classification" isa role-type;
+"attacking-classification" isa role-type;
+

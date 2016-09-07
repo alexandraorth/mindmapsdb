@@ -25,6 +25,7 @@ import io.mindmaps.core.model.Instance;
 import io.mindmaps.example.MovieGraphFactory;
 import io.mindmaps.factory.MindmapsTestGraphFactory;
 import io.mindmaps.graql.AggregateQuery;
+import io.mindmaps.graql.NamedAggregate;
 import io.mindmaps.graql.QueryBuilder;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,16 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static io.mindmaps.graql.Graql.average;
-import static io.mindmaps.graql.Graql.count;
-import static io.mindmaps.graql.Graql.group;
-import static io.mindmaps.graql.Graql.max;
-import static io.mindmaps.graql.Graql.median;
-import static io.mindmaps.graql.Graql.min;
-import static io.mindmaps.graql.Graql.select;
-import static io.mindmaps.graql.Graql.sum;
-import static io.mindmaps.graql.Graql.var;
-import static io.mindmaps.graql.Graql.withGraph;
+import static io.mindmaps.graql.Graql.*;
 import static io.mindmaps.graql.query.QueryUtil.movies;
 import static org.junit.Assert.assertEquals;
 
@@ -193,5 +185,27 @@ public class AggregateTest {
 
         //noinspection OptionalGetWithoutIsPresent
         assertEquals(8.0d, query.execute().get().doubleValue(), 0.01d);
+    }
+
+    @Test
+    public void testGetvalue(){
+        NamedAggregate<Map<String, Concept>, Object> query = qb
+                .match(
+                        var("x").isa("title"),
+                        var().rel("x").rel("y"),
+                        var("y").isa("movie"))
+                .aggregate(group("x", getvalue("x").as("val")));
+
+        System.out.println(query.execute());
+
+    }
+
+    @Test
+    public void testGetid(){
+        AggregateQuery<Map<Concept, String>> query = qb
+                .match(var("x").isa("movie"))
+                .aggregate(group("x", getid("x")));
+
+        System.out.println(query.execute());
     }
 }

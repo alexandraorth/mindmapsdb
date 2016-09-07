@@ -1,0 +1,3 @@
+rule1 isa etl-rule
+	lhs { match $type isa pokemon-type; aggregate value $type as $class}
+	rhs { insert $classification isa pokemon-classification value [class] };

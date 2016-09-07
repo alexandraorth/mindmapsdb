@@ -163,6 +163,20 @@ public class Graql {
     }
 
     /**
+     * Create an aggregate that will sum the values of a variable.
+     */
+    public static Aggregate<Map<String, Concept>, Object> getvalue(String varName) {
+        return new ValueAggregate(varName);
+    }
+
+    /**
+     * Create an aggregate that will sum the values of a variable.
+     */
+    public static Aggregate<Map<String, Concept>, String> getid(String varName) {
+        return new IdAggregate(varName);
+    }
+
+    /**
      * Create an aggregate that will find the maximum of a variable's values.
      * @param varName the variable to find the maximum of
      */
