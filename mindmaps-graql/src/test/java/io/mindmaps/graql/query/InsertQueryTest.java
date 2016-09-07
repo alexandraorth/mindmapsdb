@@ -19,8 +19,7 @@
 package io.mindmaps.graql.query;
 
 import com.google.common.collect.Sets;
-import io.mindmaps.core.MindmapsGraph;
-import io.mindmaps.MindmapsTransaction;
+import io.mindmaps.MindmapsGraph;
 import io.mindmaps.core.Data;
 import io.mindmaps.core.model.Concept;
 import io.mindmaps.core.model.EntityType;
@@ -43,17 +42,16 @@ import static org.junit.Assert.*;
 
 public class InsertQueryTest {
 
-    private MindmapsTransaction transaction;
+    private MindmapsGraph mindmapsGraph;
     private QueryBuilder qb;
     @Rule
     public final ExpectedException exception = ExpectedException.none();
 
     @Before
     public void setUp() {
-        MindmapsGraph mindmapsGraph = MindmapsTestGraphFactory.newEmptyGraph();
+        mindmapsGraph = MindmapsTestGraphFactory.newEmptyGraph();
         MovieGraphFactory.loadGraph(mindmapsGraph);
-        transaction = mindmapsGraph.getTransaction();
-        qb = withTransaction(transaction);
+        qb = withGraph(this.mindmapsGraph);
     }
 
     @Test
@@ -221,7 +219,7 @@ public class InsertQueryTest {
                 id("my-type").isa(RESOURCE_TYPE.getId()).datatype(Data.LONG)
         ).execute();
 
-        MatchQueryDefault query = qb.match(var("x").id("my-type"));
+        MatchQuery query = qb.match(var("x").id("my-type"));
         Data datatype = query.iterator().next().get("x").asResourceType().getDataType();
 
         assertEquals(Data.LONG, datatype);
@@ -234,7 +232,7 @@ public class InsertQueryTest {
                 id("ako-type").ako("my-type")
         ).execute();
 
-        MatchQueryDefault query = qb.match(var("x").id("ako-type"));
+        MatchQuery query = qb.match(var("x").id("ako-type"));
         Data datatype = query.iterator().next().get("x").asResourceType().getDataType();
 
         assertEquals(Data.STRING, datatype);
@@ -336,16 +334,16 @@ public class InsertQueryTest {
                 var().id("new-thing").isa("new-type")
         ).execute();
 
-        MatchQueryDefault typeQuery = qb.match(var("n").id("new-type"));
+        MatchQuery typeQuery = qb.match(var("n").id("new-type"));
 
         assertEquals(1, typeQuery.stream().count());
 
         // We checked count ahead of time
         //noinspection OptionalGetWithoutIsPresent
-        EntityType newType = typeQuery.get("n").stream().findFirst().get().asEntityType();
+        EntityType newType = typeQuery.get("n").findFirst().get().asEntityType();
 
         assertTrue(newType.asEntityType().isAbstract());
-        assertTrue(newType.playsRoles().contains(transaction.getRoleType("has-title-owner")));
+        assertTrue(newType.playsRoles().contains(mindmapsGraph.getRoleType("has-title-owner")));
 
         assertTrue(qb.match(var().isa("new-type")).ask().execute());
     }

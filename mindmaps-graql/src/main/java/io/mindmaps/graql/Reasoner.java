@@ -20,14 +20,12 @@ package io.mindmaps.graql;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import io.mindmaps.MindmapsTransaction;
+import io.mindmaps.MindmapsGraph;
 import io.mindmaps.core.model.Concept;
 import io.mindmaps.core.model.RoleType;
 import io.mindmaps.core.model.Rule;
 import io.mindmaps.core.model.Type;
 import io.mindmaps.constants.ErrorMessage;
-import io.mindmaps.core.implementation.exception.MindmapsValidationException;
-import io.mindmaps.core.model.*;
 import io.mindmaps.graql.internal.reasoner.container.Query;
 import io.mindmaps.graql.internal.reasoner.predicate.Atomic;
 import io.mindmaps.graql.internal.reasoner.predicate.Relation;
@@ -44,14 +42,14 @@ import static io.mindmaps.graql.internal.reasoner.Utility.*;
 
 public class Reasoner {
 
-    private final MindmapsTransaction graph;
+    private final MindmapsGraph graph;
     private final QueryParser qp;
     private final Logger LOG = LoggerFactory.getLogger(Reasoner.class);
 
     private final Map<String, Query> workingMemory = new HashMap<>();
 
-    public Reasoner(MindmapsTransaction tr){
-        this.graph = tr;
+    public Reasoner(MindmapsGraph graph){
+        this.graph = graph;
         qp =  QueryParser.create(graph);
 
         linkConceptTypes();
@@ -180,8 +178,8 @@ public class Reasoner {
     private void linkConceptTypes(Rule rule)
     {
         LOG.debug("Linking rule " + rule.getId() + "...");
-        MatchQueryDefault qLHS = qp.parseMatchQuery(rule.getLHS()).getMatchQuery();
-        MatchQueryDefault qRHS = qp.parseMatchQuery(rule.getRHS()).getMatchQuery();
+        MatchQuery qLHS = qp.parseMatchQuery(rule.getLHS()).getMatchQuery();
+        MatchQuery qRHS = qp.parseMatchQuery(rule.getRHS()).getMatchQuery();
 
         Set<Type> hypothesisConceptTypes = qLHS.admin().getTypes();
         Set<Type> conclusionConceptTypes = qRHS.admin().getTypes();
@@ -195,7 +193,7 @@ public class Reasoner {
 
     public Set<Rule> getRules() {
         Set<Rule> rules = new HashSet<>();
-        MatchQueryDefault sq = qp.parseMatchQuery("match $x isa inference-rule;").getMatchQuery();
+        MatchQuery sq = qp.parseMatchQuery("match $x isa inference-rule;").getMatchQuery();
 
         List<Map<String, Concept>> results = Lists.newArrayList(sq);
 
@@ -652,7 +650,7 @@ public class Reasoner {
      * @param inputQuery the query string to be expanded
      * @return set of answers
      */
-    public Set<Map<String, Concept>> resolve(MatchQueryDefault inputQuery) {
+    public Set<Map<String, Concept>> resolve(MatchQuery inputQuery) {
         Query query = new Query(inputQuery, graph);
         return resolveQuery(query);
     }
@@ -662,7 +660,7 @@ public class Reasoner {
      * @param inputQuery the query string to be expanded
      * @return expanded query string
      */
-    public MatchQueryDefault expand(MatchQueryDefault inputQuery) {
+    public MatchQuery expand(MatchQuery inputQuery) {
         Query query = new Query(inputQuery, graph);
         Map<String, Type> varMap = query.getVarTypeMap();
         expandQuery(query, varMap);

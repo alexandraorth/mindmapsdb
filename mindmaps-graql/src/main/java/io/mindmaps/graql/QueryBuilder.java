@@ -19,7 +19,7 @@
 package io.mindmaps.graql;
 
 import com.google.common.collect.ImmutableSet;
-import io.mindmaps.MindmapsTransaction;
+import io.mindmaps.MindmapsGraph;
 import io.mindmaps.graql.admin.AdminConverter;
 import io.mindmaps.graql.admin.VarAdmin;
 import io.mindmaps.graql.internal.query.ConjunctionImpl;
@@ -33,28 +33,28 @@ import java.util.Optional;
 /**
  * A starting point for creating queries.
  * <p>
- * A {@code QueryBuiler} is constructed with a {@code MindmapsTransaction}. All operations are performed using this
- * transaction. The user must explicitly commit or rollback changes after executing queries.
+ * A {@code QueryBuiler} is constructed with a {@code MindmapsGraph}. All operations are performed using this
+ * graph. The user must explicitly commit or rollback changes after executing queries.
  * <p>
  * {@code QueryBuilder} also provides static methods for creating {@code Vars}.
  */
 public class QueryBuilder {
 
-    private final Optional<MindmapsTransaction> transaction;
+    private final Optional<MindmapsGraph> graph;
 
     QueryBuilder() {
-        this.transaction = Optional.empty();
+        this.graph = Optional.empty();
     }
 
-    QueryBuilder(MindmapsTransaction transaction) {
-        this.transaction = Optional.of(transaction);
+    QueryBuilder(MindmapsGraph graph) {
+        this.graph = Optional.of(graph);
     }
 
     /**
      * @param patterns an array of patterns to match in the graph
      * @return a match query that will find matches of the given patterns
      */
-    public MatchQueryDefault match(Pattern... patterns) {
+    public MatchQuery match(Pattern... patterns) {
         return match(Arrays.asList(patterns));
     }
 
@@ -62,9 +62,9 @@ public class QueryBuilder {
      * @param patterns a collection of patterns to match in the graph
      * @return a match query that will find matches of the given patterns
      */
-    public MatchQueryDefault match(Collection<? extends Pattern> patterns) {
+    public MatchQuery match(Collection<? extends Pattern> patterns) {
         MatchQueryBase query = new MatchQueryBase(new ConjunctionImpl<>(AdminConverter.getPatternAdmins(patterns)));
-        return transaction.map(query::withTransaction).orElse(query);
+        return graph.map(query::withGraph).orElse(query);
     }
 
     /**
@@ -81,7 +81,7 @@ public class QueryBuilder {
      */
     public InsertQuery insert(Collection<? extends Var> vars) {
         ImmutableSet<VarAdmin> varAdmins = ImmutableSet.copyOf(AdminConverter.getVarAdmins(vars));
-        return new InsertQueryImpl(varAdmins, transaction);
+        return new InsertQueryImpl(varAdmins, graph);
     }
 
 }

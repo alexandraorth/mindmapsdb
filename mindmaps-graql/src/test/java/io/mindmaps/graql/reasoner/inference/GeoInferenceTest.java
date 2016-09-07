@@ -19,8 +19,8 @@
 package io.mindmaps.graql.reasoner.inference;
 
 import com.google.common.collect.Sets;
-import io.mindmaps.MindmapsTransaction;
-import io.mindmaps.graql.MatchQueryDefault;
+import io.mindmaps.MindmapsGraph;
+import io.mindmaps.graql.MatchQuery;
 import io.mindmaps.graql.QueryParser;
 import io.mindmaps.graql.Reasoner;
 import io.mindmaps.graql.reasoner.graphs.GeoGraph;
@@ -32,13 +32,13 @@ import static org.junit.Assert.assertEquals;
 
 public class GeoInferenceTest {
 
-    private static MindmapsTransaction graph;
+    private static MindmapsGraph graph;
     private static Reasoner reasoner;
     private static QueryParser qp;
 
     @BeforeClass
     public static void setUpClass() {
-        graph = GeoGraph.getTransaction();
+        graph = GeoGraph.getGraph();
         reasoner = new Reasoner(graph);
         qp = QueryParser.create(graph);
     }
@@ -48,7 +48,7 @@ public class GeoInferenceTest {
         String queryString = "match " +
                         "$x isa city;(geo-entity $x, entity-location $y) isa is-located-in;\n"+
                         "$y isa country;$y id 'Poland'; select $x";
-        MatchQueryDefault query = qp.parseMatchQuery(queryString).getMatchQuery();
+        MatchQuery query = qp.parseMatchQuery(queryString).getMatchQuery();
         printMatchQueryResults(query.distinct());
 
         String explicitQuery = "match " +
@@ -63,7 +63,7 @@ public class GeoInferenceTest {
         String queryString = "match " +
                 "$x isa university;(geo-entity $x, entity-location $y) isa is-located-in;"+
                 "$y isa country;$y id 'Poland' select $x";
-        MatchQueryDefault query = qp.parseMatchQuery(queryString).getMatchQuery();
+        MatchQuery query = qp.parseMatchQuery(queryString).getMatchQuery();
         String explicitQuery = "match " +
                 "$x isa university;{$x id 'University-of-Warsaw'} or {$x id 'Warsaw-Polytechnics'};" +
                 "$y isa country;$y id 'Poland'; select $x";
@@ -71,7 +71,7 @@ public class GeoInferenceTest {
         assertEquals(reasoner.resolve(query), Sets.newHashSet(qp.parseMatchQuery(explicitQuery).getMatchQuery()));
     }
 
-    private void assertQueriesEqual(MatchQueryDefault q1, MatchQueryDefault q2) {
+    private void assertQueriesEqual(MatchQuery q1, MatchQuery q2) {
         assertEquals(Sets.newHashSet(q1), Sets.newHashSet(q2));
     }
 }

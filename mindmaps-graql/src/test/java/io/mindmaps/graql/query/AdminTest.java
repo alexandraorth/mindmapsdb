@@ -19,12 +19,14 @@
 package io.mindmaps.graql.query;
 
 import com.google.common.collect.Sets;
-import io.mindmaps.core.MindmapsGraph;
-import io.mindmaps.MindmapsTransaction;
+import io.mindmaps.MindmapsGraph;
 import io.mindmaps.core.model.Type;
 import io.mindmaps.example.MovieGraphFactory;
 import io.mindmaps.factory.MindmapsTestGraphFactory;
-import io.mindmaps.graql.*;
+import io.mindmaps.graql.DeleteQuery;
+import io.mindmaps.graql.InsertQuery;
+import io.mindmaps.graql.MatchQuery;
+import io.mindmaps.graql.QueryBuilder;
 import io.mindmaps.graql.admin.PatternAdmin;
 import io.mindmaps.graql.internal.query.Conjunction;
 import org.junit.Before;
@@ -43,24 +45,23 @@ import static org.junit.Assert.assertFalse;
 
 public class AdminTest {
 
-    private static MindmapsTransaction transaction;
+    private static MindmapsGraph mindmapsGraph;
     private QueryBuilder qb;
 
     @BeforeClass
     public static void setUpClass() {
-        MindmapsGraph mindmapsGraph = MindmapsTestGraphFactory.newEmptyGraph();
+        mindmapsGraph = MindmapsTestGraphFactory.newEmptyGraph();
         MovieGraphFactory.loadGraph(mindmapsGraph);
-        transaction = mindmapsGraph.getTransaction();
     }
 
     @Before
     public void setUp() {
-        qb = withTransaction(transaction);
+        qb = withGraph(mindmapsGraph);
     }
 
     @Test
     public void testGetTypesInQuery() {
-        MatchQueryDefault query = qb.match(
+        MatchQuery query = qb.match(
                 var("x").isa(id("movie").ako("production")).has("tmdb-vote-count", 400),
                 var("y").isa("character").id("123"),
                 var().rel("production-with-cast", "x").rel("y").isa("has-cast")
@@ -68,28 +69,28 @@ public class AdminTest {
 
         Set<Type> types = Stream.of(
                 "movie", "production", "tmdb-vote-count", "character", "production-with-cast", "has-cast"
-        ).map(transaction::getType).collect(toSet());
+        ).map(mindmapsGraph::getType).collect(toSet());
 
         assertEquals(types, query.admin().getTypes());
     }
 
     @Test
     public void testDefaultGetSelectedNamesInQuery() {
-        MatchQueryDefault query = qb.match(var("x").isa(var("y")));
+        MatchQuery query = qb.match(var("x").isa(var("y")));
 
         assertEquals(Sets.newHashSet("x", "y"), query.admin().getSelectedNames());
     }
 
     @Test
     public void testExplicitGetSelectedNamesInQuery() {
-        MatchQueryDefault query = qb.match(var("x").isa(var("y"))).select("x");
+        MatchQuery query = qb.match(var("x").isa(var("y"))).select("x");
 
         assertEquals(Sets.newHashSet("x"), query.admin().getSelectedNames());
     }
 
     @Test
     public void testGetPatternInQuery() {
-        MatchQueryDefault query = qb.match(var("x").isa("movie"), var("x").value("Bob"));
+        MatchQuery query = qb.match(var("x").isa("movie"), var("x").value("Bob"));
 
         Conjunction<PatternAdmin> conjunction = query.admin().getPattern();
         assertNotNull(conjunction);
@@ -100,7 +101,7 @@ public class AdminTest {
 
     @Test
     public void testMutateMatchQuery() {
-        MatchQueryDefault query = qb.match(var("x").isa("movie"));
+        MatchQuery query = qb.match(var("x").isa("movie"));
 
         Conjunction<PatternAdmin> pattern = query.admin().getPattern();
         pattern.getPatterns().add(var("x").id("Spy").admin());
@@ -142,7 +143,7 @@ public class AdminTest {
     @Test
     public void testInsertQueryGetTypes() {
         InsertQuery query = qb.insert(var("x").isa("person").has("name"), var().rel("actor", "x").isa("has-cast"));
-        Set<Type> types = Stream.of("person", "name", "actor", "has-cast").map(transaction::getType).collect(toSet());
+        Set<Type> types = Stream.of("person", "name", "actor", "has-cast").map(mindmapsGraph::getType).collect(toSet());
         assertEquals(types, query.admin().getTypes());
     }
 
@@ -152,7 +153,7 @@ public class AdminTest {
                         .insert(var("x").isa("person").has("name"), var().rel("actor", "x").isa("has-cast"));
 
         Set<Type> types =
-                Stream.of("movie", "person", "name", "actor", "has-cast").map(transaction::getType).collect(toSet());
+                Stream.of("movie", "person", "name", "actor", "has-cast").map(mindmapsGraph::getType).collect(toSet());
 
         assertEquals(types, query.admin().getTypes());
     }

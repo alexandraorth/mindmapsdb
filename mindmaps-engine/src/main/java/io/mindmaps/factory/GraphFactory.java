@@ -18,8 +18,8 @@
 
 package io.mindmaps.factory;
 
-import io.mindmaps.util.ConfigProperties;
-import io.mindmaps.core.MindmapsGraph;
+import io.mindmaps.MindmapsGraph;
+import io.mindmaps.engine.util.ConfigProperties;
 
 public class GraphFactory {
     private String graphConfig;

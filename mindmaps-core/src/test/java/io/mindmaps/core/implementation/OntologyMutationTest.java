@@ -34,7 +34,7 @@ import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.core.StringContains.containsString;
 
 public class OntologyMutationTest {
-    private MindmapsTransactionImpl mindmapsGraph;
+    private AbstractMindmapsGraph mindmapsGraph;
     private RoleType husband;
     private RoleType wife;
     private RelationType marriage;
@@ -51,15 +51,15 @@ public class OntologyMutationTest {
 
     @Before
     public void buildGraph() throws MindmapsValidationException {
-        mindmapsGraph = (MindmapsTransactionImpl) MindmapsTestGraphFactory.newEmptyGraph().getTransaction();
+        mindmapsGraph = (AbstractMindmapsGraph) MindmapsTestGraphFactory.newEmptyGraph();
 
-        //spouse = mindmapsTransaction.putRoleType("Spouse");
+        //spouse = mindmapsGraph.putRoleType("Spouse");
         husband = mindmapsGraph.putRoleType("Husband");//.superType(spouse);
         wife = mindmapsGraph.putRoleType("Wife");
         RoleType driver = mindmapsGraph.putRoleType("Driver");
         RoleType driven = mindmapsGraph.putRoleType("Driven");
 
-        //union = mindmapsTransaction.putRelationType("Union").hasRole(spouse).hasRole(wife);
+        //union = mindmapsGraph.putRelationType("Union").hasRole(spouse).hasRole(wife);
         marriage = mindmapsGraph.putRelationType("marriage").hasRole(husband).hasRole(wife);
         RelationType carBeingDrivenBy = mindmapsGraph.putRelationType("car being driven by").hasRole(driven).hasRole(driver);
 

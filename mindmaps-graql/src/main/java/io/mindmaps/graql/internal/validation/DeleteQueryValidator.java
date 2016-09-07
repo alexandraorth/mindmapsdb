@@ -18,7 +18,7 @@
 
 package io.mindmaps.graql.internal.validation;
 
-import io.mindmaps.MindmapsTransaction;
+import io.mindmaps.MindmapsGraph;
 import io.mindmaps.graql.admin.DeleteQueryAdmin;
 
 import java.util.stream.Stream;
@@ -38,8 +38,8 @@ public class DeleteQueryValidator implements Validator {
     }
 
     @Override
-    public Stream<String> getErrors(MindmapsTransaction transaction) {
+    public Stream<String> getErrors(MindmapsGraph graph) {
         Stream<Validator> validators = deleteQuery.getDeleters().stream().map(DeleteVarValidator::new);
-        return Validator.getAggregateValidator(validators).getErrors(transaction);
+        return Validator.getAggregateValidator(validators).getErrors(graph);
     }
 }

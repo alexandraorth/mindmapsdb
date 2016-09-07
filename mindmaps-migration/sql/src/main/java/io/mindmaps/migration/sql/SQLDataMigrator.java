@@ -1,17 +1,28 @@
 package io.mindmaps.migration.sql;
 
 import com.google.common.base.Throwables;
+import io.mindmaps.MindmapsGraph;
 import io.mindmaps.core.Data;
-import io.mindmaps.core.MindmapsGraph;
+import io.mindmaps.engine.loader.Loader;
 import io.mindmaps.graql.Var;
-import io.mindmaps.loader.Loader;
 import io.mindmaps.migration.sql.SQLModel.SQLTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.sql.*;
-import java.util.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static io.mindmaps.graql.Graql.var;
 
@@ -189,7 +200,9 @@ public class SQLDataMigrator implements Iterable<Collection<Var>>, Closeable {
     @Override
     public void close() {
         try {
-            connection.close();
+            if(connection != null) {
+                connection.close();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }

@@ -19,7 +19,7 @@
 package io.mindmaps.graql.internal.validation;
 
 import io.mindmaps.constants.ErrorMessage;
-import io.mindmaps.MindmapsTransaction;
+import io.mindmaps.MindmapsGraph;
 
 import java.util.Collection;
 import java.util.stream.Stream;
@@ -39,17 +39,17 @@ class ResourceValidator implements Validator {
     }
 
     @Override
-    public Stream<String> getErrors(MindmapsTransaction transaction) {
-        return resourceTypes.stream().flatMap(r -> validateResource(transaction, r));
+    public Stream<String> getErrors(MindmapsGraph graph) {
+        return resourceTypes.stream().flatMap(r -> validateResource(graph, r));
     }
 
     /**
-     * @param transaction the transaction to look up the resource type in
+     * @param graph the graph to look up the resource type in
      * @param resourceType the resource type to validate
      * @return a stream of errors regarding this resource type
      */
-    private Stream<String> validateResource(MindmapsTransaction transaction, String resourceType) {
-        if (transaction.getResourceType(resourceType) == null) {
+    private Stream<String> validateResource(MindmapsGraph graph, String resourceType) {
+        if (graph.getResourceType(resourceType) == null) {
             return Stream.of(ErrorMessage.MUST_BE_RESOURCE_TYPE.getMessage(resourceType));
         } else {
             return Stream.empty();

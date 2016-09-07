@@ -34,7 +34,7 @@ import java.util.*;
  * A relation represents and instance of a relation type which model how different entities relate to one another.
  */
 class RelationImpl extends InstanceImpl<Relation, RelationType> implements Relation {
-    RelationImpl(Vertex v, MindmapsTransactionImpl mindmapsGraph) {
+    RelationImpl(Vertex v, AbstractMindmapsGraph mindmapsGraph) {
         super(v, mindmapsGraph);
     }
 
@@ -44,7 +44,7 @@ class RelationImpl extends InstanceImpl<Relation, RelationType> implements Relat
      */
     public Set<CastingImpl> getMappingCasting() {
         Set<CastingImpl> castings = new HashSet<>();
-        getOutgoingNeighbours(DataType.EdgeLabel.CASTING).forEach(casting -> castings.add(getMindmapsTransaction().getElementFactory().buildCasting(casting)));
+        getOutgoingNeighbours(DataType.EdgeLabel.CASTING).forEach(casting -> castings.add(getMindmapsGraph().getElementFactory().buildCasting(casting)));
         return castings;
     }
 
@@ -104,7 +104,7 @@ class RelationImpl extends InstanceImpl<Relation, RelationType> implements Relat
     @Override
     public Set<Instance> scopes() {
         HashSet<Instance> scopes = new HashSet<>();
-        getOutgoingNeighbours(DataType.EdgeLabel.HAS_SCOPE).forEach(concept -> scopes.add(getMindmapsTransaction().getElementFactory().buildSpecificInstance(concept)));
+        getOutgoingNeighbours(DataType.EdgeLabel.HAS_SCOPE).forEach(concept -> scopes.add(getMindmapsGraph().getElementFactory().buildSpecificInstance(concept)));
         return scopes;
     }
 
@@ -115,7 +115,7 @@ class RelationImpl extends InstanceImpl<Relation, RelationType> implements Relat
      */
     @Override
     public Relation scope(Instance instance) {
-        putEdge(getMindmapsTransaction().getElementFactory().buildEntity(instance), DataType.EdgeLabel.HAS_SCOPE);
+        putEdge(getMindmapsGraph().getElementFactory().buildEntity(instance), DataType.EdgeLabel.HAS_SCOPE);
         return this;
     }
 
@@ -131,12 +131,12 @@ class RelationImpl extends InstanceImpl<Relation, RelationType> implements Relat
             throw new IllegalArgumentException(ErrorMessage.ROLE_IS_NULL.getMessage(instance));
         }
 
-        if(mindmapsTransaction.isBatchLoadingEnabled()) {
+        if(mindmapsGraph.isBatchLoadingEnabled()) {
             return addNewRolePlayer(null, roleType, instance);
         } else {
             Map<RoleType, Instance> roleMap = rolePlayers();
             roleMap.put(roleType, instance);
-            Relation otherRelation = mindmapsTransaction.getRelation(type(), roleMap);
+            Relation otherRelation = mindmapsGraph.getRelation(type(), roleMap);
 
             if(otherRelation == null){
                 return addNewRolePlayer(roleMap, roleType, instance);
@@ -158,9 +158,9 @@ class RelationImpl extends InstanceImpl<Relation, RelationType> implements Relat
      */
     private Relation addNewRolePlayer(Map<RoleType, Instance> roleMap, RoleType roleType, Instance instance){
         if(instance != null)
-            mindmapsTransaction.putCasting((RoleTypeImpl) roleType, (InstanceImpl) instance, this);
+            mindmapsGraph.putCasting((RoleTypeImpl) roleType, (InstanceImpl) instance, this);
 
-        if(mindmapsTransaction.isBatchLoadingEnabled()){
+        if(mindmapsGraph.isBatchLoadingEnabled()){
             setHash(null);
         } else {
             setHash(roleMap);
@@ -175,7 +175,7 @@ class RelationImpl extends InstanceImpl<Relation, RelationType> implements Relat
      */
     @Override
     public Relation deleteScope(Instance scope) throws ConceptException {
-        deleteEdgeTo(DataType.EdgeLabel.HAS_SCOPE, getMindmapsTransaction().getElementFactory().buildEntity(scope));
+        deleteEdgeTo(DataType.EdgeLabel.HAS_SCOPE, getMindmapsGraph().getElementFactory().buildEntity(scope));
         return this;
     }
 
@@ -189,9 +189,9 @@ class RelationImpl extends InstanceImpl<Relation, RelationType> implements Relat
         // tracking
         rolePlayers.forEach(r -> {
             if(r != null)
-                getMindmapsTransaction().getConceptLog().putConcept(getMindmapsTransaction().getElementFactory().buildSpecificInstance(r));
+                getMindmapsGraph().getConceptLog().putConcept(getMindmapsGraph().getElementFactory().buildSpecificInstance(r));
         });
-        this.getMappingCasting().forEach(c -> getMindmapsTransaction().getConceptLog().putConcept(c));
+        this.getMappingCasting().forEach(c -> getMindmapsGraph().getConceptLog().putConcept(c));
 
         for(Instance instance : rolePlayers){
             if(instance != null && (instance.getId() != null )){

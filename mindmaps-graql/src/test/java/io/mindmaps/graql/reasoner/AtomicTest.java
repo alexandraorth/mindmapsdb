@@ -19,7 +19,7 @@
 package io.mindmaps.graql.reasoner;
 
 import com.google.common.collect.Sets;
-import io.mindmaps.MindmapsTransaction;
+import io.mindmaps.MindmapsGraph;
 import io.mindmaps.core.model.RelationType;
 import io.mindmaps.core.model.RoleType;
 import io.mindmaps.core.model.Type;
@@ -40,25 +40,25 @@ public class AtomicTest {
 
     @Test
     public void testValuePredicate(){
-        MindmapsTransaction graph = SNBGraph.getTransaction();
+        MindmapsGraph graph = SNBGraph.getGraph();
         QueryParser qp = QueryParser.create(graph);
         String queryString = "match " +
                 "$x1 isa person;\n" +
                 "$x2 isa tag;\n" +
                 "($x1, $x2) isa recommendation";
 
-        MatchQueryDefault MQ = qp.parseMatchQuery(queryString).getMatchQuery();
+        MatchQuery MQ = qp.parseMatchQuery(queryString).getMatchQuery();
         printMatchQueryResults(MQ);
     }
 
     @Test
     public void testRelationConstructor(){
-        MindmapsTransaction graph = GenericGraph.getTransaction("geo-test.gql");
+        MindmapsGraph graph = GenericGraph.getGraph("geo-test.gql");
         QueryParser qp = QueryParser.create(graph);
 
         String queryString = "match (geo-entity $x, entity-location $y) isa is-located-in;";
 
-        MatchQueryDefault MQ = qp.parseMatchQuery(queryString).getMatchQuery();
+        MatchQuery MQ = qp.parseMatchQuery(queryString).getMatchQuery();
         Query query = new Query(MQ, graph);
 
         Atomic atom = query.selectAtoms().iterator().next();
@@ -77,12 +77,12 @@ public class AtomicTest {
 
     @Test
     public void testRelationConstructor2(){
-        MindmapsTransaction graph = GenericGraph.getTransaction("geo-test.gql");
+        MindmapsGraph graph = GenericGraph.getGraph("geo-test.gql");
         QueryParser qp = QueryParser.create(graph);
 
         String queryString = "match ($x, $y, $z) isa ternary-relation-test";
 
-        MatchQueryDefault MQ = qp.parseMatchQuery(queryString).getMatchQuery();
+        MatchQuery MQ = qp.parseMatchQuery(queryString).getMatchQuery();
         Query query = new Query(MQ, graph);
 
         Atomic atom = query.selectAtoms().iterator().next();

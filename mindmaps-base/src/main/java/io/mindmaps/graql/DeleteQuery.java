@@ -18,7 +18,7 @@
 
 package io.mindmaps.graql;
 
-import io.mindmaps.MindmapsTransaction;
+import io.mindmaps.MindmapsGraph;
 import io.mindmaps.graql.admin.DeleteQueryAdmin;
 
 /**
@@ -39,10 +39,10 @@ public interface DeleteQuery {
     void execute();
 
     /**
-     * @param transaction the transaction to execute the query on
-     * @return a new DeleteQuery with the transaction set
+     * @param graph the graph to execute the query on
+     * @return a new DeleteQuery with the graph set
      */
-    DeleteQuery withTransaction(MindmapsTransaction transaction);
+    DeleteQuery withGraph(MindmapsGraph graph);
 
     /**
      * @return admin instance for inspecting and manipulating this query

@@ -18,8 +18,7 @@
 
 package io.mindmaps.graql.query;
 
-import io.mindmaps.core.MindmapsGraph;
-import io.mindmaps.MindmapsTransaction;
+import io.mindmaps.MindmapsGraph;
 import io.mindmaps.example.MovieGraphFactory;
 import io.mindmaps.factory.MindmapsTestGraphFactory;
 import io.mindmaps.graql.*;
@@ -36,105 +35,104 @@ public class QueryBuilderTest {
 
     @Rule
     public final ExpectedException exception = ExpectedException.none();
-    private static MindmapsTransaction transaction;
+    private static MindmapsGraph mindmapsGraph;
 
     @Before
     public void setUp() {
-        MindmapsGraph mindmapsGraph = MindmapsTestGraphFactory.newEmptyGraph();
+        mindmapsGraph = MindmapsTestGraphFactory.newEmptyGraph();
         MovieGraphFactory.loadGraph(mindmapsGraph);
-        transaction = mindmapsGraph.getTransaction();
     }
 
     @Test
-    public void testBuildQueryTransactionFirst() {
-        MatchQueryDefault query = withTransaction(transaction).match(var("x").isa("movie"));
+    public void testBuildQueryGraphFirst() {
+        MatchQuery query = withGraph(mindmapsGraph).match(var("x").isa("movie"));
         QueryUtil.assertResultsMatch(query, "x", "movie", QueryUtil.movies);
     }
 
     @Test
-    public void testBuildMatchQueryTransactionLast() {
-        MatchQueryDefault query = match(var("x").isa("movie")).withTransaction(transaction);
+    public void testBuildMatchQueryGraphLast() {
+        MatchQuery query = match(var("x").isa("movie")).withGraph(mindmapsGraph);
         QueryUtil.assertResultsMatch(query, "x", "movie", QueryUtil.movies);
     }
 
     @Test
-    public void testBuildAskQueryTransactionLast() {
-        AskQuery query = match(var("x").isa("movie")).ask().withTransaction(transaction);
+    public void testBuildAskQueryGraphLast() {
+        AskQuery query = match(var("x").isa("movie")).ask().withGraph(mindmapsGraph);
         assertTrue(query.execute());
     }
 
     @Test
-    public void testBuildInsertQueryTransactionLast() {
-        assertFalse(withTransaction(transaction).match(var().id("a-movie")).ask().execute());
-        InsertQuery query = insert(var().id("a-movie").isa("movie")).withTransaction(transaction);
+    public void testBuildInsertQueryGraphLast() {
+        assertFalse(withGraph(mindmapsGraph).match(var().id("a-movie")).ask().execute());
+        InsertQuery query = insert(var().id("a-movie").isa("movie")).withGraph(mindmapsGraph);
         query.execute();
-        assertTrue(withTransaction(transaction).match(var().id("a-movie")).ask().execute());
+        assertTrue(withGraph(mindmapsGraph).match(var().id("a-movie")).ask().execute());
     }
 
     @Test
-    public void testBuildDeleteQueryTransactionLast() {
+    public void testBuildDeleteQueryGraphLast() {
         // Insert some data to delete
-        withTransaction(transaction).insert(var().id("123").isa("movie")).execute();
+        withGraph(mindmapsGraph).insert(var().id("123").isa("movie")).execute();
 
-        assertTrue(withTransaction(transaction).match(var().id("123")).ask().execute());
+        assertTrue(withGraph(mindmapsGraph).match(var().id("123")).ask().execute());
 
-        DeleteQuery query = match(var("x").id("123")).delete("x").withTransaction(transaction);
+        DeleteQuery query = match(var("x").id("123")).delete("x").withGraph(mindmapsGraph);
         query.execute();
 
-        assertFalse(withTransaction(transaction).match(var().id("123")).ask().execute());
+        assertFalse(withGraph(mindmapsGraph).match(var().id("123")).ask().execute());
     }
 
     @Test
-    public void testBuildMatchInsertQueryTransactionLast() {
-        assertFalse(withTransaction(transaction).match(var().id("a-movie")).ask().execute());
+    public void testBuildMatchInsertQueryGraphLast() {
+        assertFalse(withGraph(mindmapsGraph).match(var().id("a-movie")).ask().execute());
         InsertQuery query =
                 match(var("x").id("movie")).
-                insert(var().id("a-movie").isa("movie")).withTransaction(transaction);
+                insert(var().id("a-movie").isa("movie")).withGraph(mindmapsGraph);
         query.execute();
-        assertTrue(withTransaction(transaction).match(var().id("a-movie")).ask().execute());
+        assertTrue(withGraph(mindmapsGraph).match(var().id("a-movie")).ask().execute());
     }
 
     @Test
-    public void testErrorExecuteMatchQueryWithoutTransaction() {
-        MatchQueryDefault query = match(var("x").isa("movie"));
+    public void testErrorExecuteMatchQueryWithoutGraph() {
+        MatchQuery query = match(var("x").isa("movie"));
         exception.expect(IllegalStateException.class);
-        exception.expectMessage("transaction");
+        exception.expectMessage("graph");
         query.iterator();
     }
 
     @Test
-    public void testErrorExecuteAskQueryWithoutTransaction() {
+    public void testErrorExecuteAskQueryWithoutGraph() {
         exception.expect(IllegalStateException.class);
-        exception.expectMessage("transaction");
+        exception.expectMessage("graph");
         match(var("x").isa("movie")).ask().execute();
     }
 
     @Test
-    public void testErrorExecuteInsertQueryWithoutTransaction() {
+    public void testErrorExecuteInsertQueryWithoutGraph() {
         InsertQuery query = insert(var().id("another-movie").isa("movie"));
         exception.expect(IllegalStateException.class);
-        exception.expectMessage("transaction");
+        exception.expectMessage("graph");
         query.execute();
     }
 
     @Test
-    public void testErrorExecuteDeleteQueryWithoutTransaction() {
+    public void testErrorExecuteDeleteQueryWithoutGraph() {
         exception.expect(IllegalStateException.class);
-        exception.expectMessage("transaction");
+        exception.expectMessage("graph");
         match(var("x").isa("movie")).delete("x").execute();
     }
 
     @Test
-    public void testValidationWhenTransactionProvided() {
-        MatchQueryDefault query = match(var("x").isa("not-a-thing"));
+    public void testValidationWhenGraphProvided() {
+        MatchQuery query = match(var("x").isa("not-a-thing"));
         exception.expect(IllegalStateException.class);
-        query.withTransaction(transaction).stream();
+        query.withGraph(mindmapsGraph).stream();
     }
 
     @Test
-    public void testErrorWhenSpecifyTransactionTwice() {
+    public void testErrorWhenSpecifyGraphTwice() {
         exception.expect(IllegalStateException.class);
-        exception.expectMessage("transaction");
-        withTransaction(transaction).match(var("x").isa("movie")).withTransaction(transaction).stream();
+        exception.expectMessage("graph");
+        withGraph(mindmapsGraph).match(var("x").isa("movie")).withGraph(mindmapsGraph).stream();
     }
 }

@@ -42,7 +42,7 @@ import java.util.Set;
  * @param <V> The type of the instances of this concept type.
  */
 class TypeImpl<T extends Type, V extends Concept> extends ConceptImpl<T, Type> implements Type {
-    TypeImpl(Vertex v, MindmapsTransactionImpl mindmapsGraph) {
+    TypeImpl(Vertex v, AbstractMindmapsGraph mindmapsGraph) {
         super(v, mindmapsGraph);
     }
 
@@ -56,8 +56,8 @@ class TypeImpl<T extends Type, V extends Concept> extends ConceptImpl<T, Type> i
         Iterator<Edge> edges = getVertex().edges(Direction.OUT, DataType.EdgeLabel.PLAYS_ROLE.getLabel());
 
         edges.forEachRemaining(edge -> {
-            RoleTypeImpl roleType = getMindmapsTransaction().getElementFactory().buildRoleType(edge.inVertex());
-            roleType.subTypes().forEach(role -> rolesPlayed.add(getMindmapsTransaction().getElementFactory().buildRoleType(role)));
+            RoleTypeImpl roleType = getMindmapsGraph().getElementFactory().buildRoleType(edge.inVertex());
+            roleType.subTypes().forEach(role -> rolesPlayed.add(getMindmapsGraph().getElementFactory().buildRoleType(role)));
         });
 
         return rolesPlayed;
@@ -146,7 +146,7 @@ class TypeImpl<T extends Type, V extends Concept> extends ConceptImpl<T, Type> i
      */
     private Collection<TypeImpl> getSubConceptTypes(){
         Collection<TypeImpl> subSet = new HashSet<>();
-        getIncomingNeighbours(DataType.EdgeLabel.AKO).forEach(concept -> subSet.add(getMindmapsTransaction().getElementFactory().buildSpecificConceptType(concept)));
+        getIncomingNeighbours(DataType.EdgeLabel.AKO).forEach(concept -> subSet.add(getMindmapsGraph().getElementFactory().buildSpecificConceptType(concept)));
         return subSet;
     }
 
@@ -160,14 +160,14 @@ class TypeImpl<T extends Type, V extends Concept> extends ConceptImpl<T, Type> i
         Set<V> instances = new HashSet<>();
 
         //noinspection unchecked
-        GraphTraversal<Vertex, Vertex> traversal = getMindmapsTransaction().getTinkerPopGraph().traversal().V()
+        GraphTraversal<Vertex, Vertex> traversal = getMindmapsGraph().getTinkerPopGraph().traversal().V()
                 .has(DataType.ConceptPropertyUnique.ITEM_IDENTIFIER.name(), getId())
                 .union(__.identity(), __.repeat(__.in(DataType.EdgeLabel.AKO.getLabel())).emit()).unfold()
                 .in(DataType.EdgeLabel.ISA.getLabel())
                 .union(__.identity(), __.repeat(__.in(DataType.EdgeLabel.AKO.getLabel())).emit()).unfold();
 
         traversal.forEachRemaining(vertex -> {
-            ConceptImpl concept = getMindmapsTransaction().getElementFactory().buildUnknownConcept(vertex);
+            ConceptImpl concept = getMindmapsGraph().getElementFactory().buildUnknownConcept(vertex);
             if(!DataType.BaseType.CASTING.name().equals(concept.getBaseType())){
                 instances.add((V) concept);
             }
@@ -193,7 +193,7 @@ class TypeImpl<T extends Type, V extends Concept> extends ConceptImpl<T, Type> i
     @Override
     public Collection<Rule> getRulesOfHypothesis() {
         Set<Rule> rules = new HashSet<>();
-        getIncomingNeighbours(DataType.EdgeLabel.HYPOTHESIS).forEach(concept -> rules.add(getMindmapsTransaction().getElementFactory().buildRule(concept)));
+        getIncomingNeighbours(DataType.EdgeLabel.HYPOTHESIS).forEach(concept -> rules.add(getMindmapsGraph().getElementFactory().buildRule(concept)));
         return rules;
     }
 
@@ -204,7 +204,7 @@ class TypeImpl<T extends Type, V extends Concept> extends ConceptImpl<T, Type> i
     @Override
     public Collection<Rule> getRulesOfConclusion() {
         Set<Rule> rules = new HashSet<>();
-        getIncomingNeighbours(DataType.EdgeLabel.CONCLUSION).forEach(concept -> rules.add(getMindmapsTransaction().getElementFactory().buildRule(concept)));
+        getIncomingNeighbours(DataType.EdgeLabel.CONCLUSION).forEach(concept -> rules.add(getMindmapsGraph().getElementFactory().buildRule(concept)));
         return rules;
     }
 
@@ -220,14 +220,14 @@ class TypeImpl<T extends Type, V extends Concept> extends ConceptImpl<T, Type> i
             currentSuperType.instances().forEach(concept -> {
                 if(concept.isInstance()){
                     ((InstanceImpl<?, ?>) concept).castings().forEach(
-                            instance -> mindmapsTransaction.getConceptLog().putConcept(instance));
+                            instance -> mindmapsGraph.getConceptLog().putConcept(instance));
                 }
             });
         }
 
         deleteEdges(Direction.OUT, DataType.EdgeLabel.AKO);
         deleteEdges(Direction.OUT, DataType.EdgeLabel.ISA);
-        putEdge(getMindmapsTransaction().getElementFactory().buildSpecificConceptType(type), DataType.EdgeLabel.AKO);
+        putEdge(getMindmapsGraph().getElementFactory().buildSpecificConceptType(type), DataType.EdgeLabel.AKO);
         type(); //Check if there is a circular ako loop
         return getThis();
     }
@@ -239,7 +239,7 @@ class TypeImpl<T extends Type, V extends Concept> extends ConceptImpl<T, Type> i
      */
     @Override
     public T playsRole(RoleType roleType) {
-        putEdge(getMindmapsTransaction().getElementFactory().buildRoleType(roleType), DataType.EdgeLabel.PLAYS_ROLE);
+        putEdge(getMindmapsGraph().getElementFactory().buildRoleType(roleType), DataType.EdgeLabel.PLAYS_ROLE);
         return getThis();
     }
 
@@ -250,12 +250,12 @@ class TypeImpl<T extends Type, V extends Concept> extends ConceptImpl<T, Type> i
      */
     @Override
     public T deletePlaysRole(RoleType roleType) {
-        deleteEdgeTo(DataType.EdgeLabel.PLAYS_ROLE, getMindmapsTransaction().getElementFactory().buildRoleType(roleType));
+        deleteEdgeTo(DataType.EdgeLabel.PLAYS_ROLE, getMindmapsGraph().getElementFactory().buildRoleType(roleType));
 
         //Add castings to tracking to make sure they can still be played.
         instances().forEach(concept -> {
             if (concept.isInstance()) {
-                ((InstanceImpl<?, ?>) concept).castings().forEach(casting -> mindmapsTransaction.getConceptLog().putConcept(casting));
+                ((InstanceImpl<?, ?>) concept).castings().forEach(casting -> mindmapsGraph.getConceptLog().putConcept(casting));
             }
         });
 
@@ -279,7 +279,7 @@ class TypeImpl<T extends Type, V extends Concept> extends ConceptImpl<T, Type> i
     public T setAbstract(Boolean isAbstract) {
         setProperty(DataType.ConceptProperty.IS_ABSTRACT, isAbstract);
         if(isAbstract)
-            mindmapsTransaction.getConceptLog().putConcept(this);
+            mindmapsGraph.getConceptLog().putConcept(this);
         return getThis();
     }
 }
