@@ -8,6 +8,7 @@ import io.mindmaps.engine.controller.CommitLogController;
 import io.mindmaps.engine.controller.GraphFactoryController;
 import io.mindmaps.engine.controller.TransactionController;
 import io.mindmaps.engine.util.ConfigProperties;
+import io.mindmaps.example.PokemonGraphFactory;
 import io.mindmaps.factory.GraphFactory;
 import io.mindmaps.graql.QueryParser;
 import org.junit.AfterClass;
@@ -24,12 +25,10 @@ import static org.junit.Assert.assertNotNull;
 
 public class EtlTest {
 
-    private static final String LEFT_GRAPH_NAME = "left";
     private static final String RIGHT_GRAPH_NAME = "right";
 
     private static MindmapsGraph leftGraph;
     private static MindmapsGraph rightGraph;
-
 
     @BeforeClass
     public static void setup(){
@@ -42,7 +41,8 @@ public class EtlTest {
         new CommitLogController();
         new GraphFactoryController();
 
-        leftGraph = GraphFactory.getInstance().getGraph(LEFT_GRAPH_NAME);
+        // initialize left graph for this test
+        PokemonGraphFactory.loadGraph(leftGraph);
         rightGraph = GraphFactory.getInstance().getGraph(RIGHT_GRAPH_NAME);
     }
 
@@ -65,7 +65,6 @@ public class EtlTest {
     }
 
     private void setupExample(String dir) throws IOException {
-        executeGraqlInsertFromFile(dir + "/leftgraph.gql", leftGraph);
         executeGraqlInsertFromFile(dir + "/rightgraph.gql", rightGraph);
     }
 

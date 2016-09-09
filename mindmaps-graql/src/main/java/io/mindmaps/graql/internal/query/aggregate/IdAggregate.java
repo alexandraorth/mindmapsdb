@@ -4,6 +4,7 @@ import io.mindmaps.core.model.Concept;
 import io.mindmaps.graql.internal.query.aggregate.AbstractAggregate;
 
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class IdAggregate extends AbstractAggregate<Map<String, Concept>, String> {
@@ -16,6 +17,11 @@ public class IdAggregate extends AbstractAggregate<Map<String, Concept>, String>
 
     @Override
     public String apply(Stream<? extends Map<String, Concept>> stream){
+        Supplier<Stream<? extends Map<String, Concept>>> streamSupplier = () -> { return stream; };
+
+        // we need to guarantee there is only one object in this stream
+//        assert streamSupplier.get().count() == 1;
+
         Concept concept = stream.map(result -> result.get(varName)).findFirst().get();
         return concept.getId();
     }

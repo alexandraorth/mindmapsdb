@@ -38,6 +38,7 @@
         <module>mindmaps-test</module>
         <module>mindmaps-base</module>
         <module>mindmaps-migration</module>
+        <module>mindmaps-trace</module>
     </modules>
 
     <properties>

@@ -30,6 +30,7 @@ import io.mindmaps.graql.internal.query.aggregate.*;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
 
 import java.util.*;
+import java.util.stream.Stream;
 
 public class Graql {
 
@@ -163,14 +164,18 @@ public class Graql {
     }
 
     /**
-     * Create an aggregate that will sum the values of a variable.
+     * Create an aggregate that will get the value of a variable.
      */
     public static Aggregate<Map<String, Concept>, Object> getvalue(String varName) {
         return new ValueAggregate(varName);
     }
 
+    public static Aggregate<Map<String, Concept>, Concept> identity(String varName){
+        return new IdentityAggregate(varName);
+    }
+
     /**
-     * Create an aggregate that will sum the values of a variable.
+     * Create an aggregate that will get the id of a variable.
      */
     public static Aggregate<Map<String, Concept>, String> getid(String varName) {
         return new IdAggregate(varName);
@@ -225,6 +230,11 @@ public class Graql {
     public static <T> Aggregate<Map<String, Concept>, Map<Concept, T>> group(
             String varName, Aggregate<? super Map<String, Concept>, T> aggregate) {
         return new GroupAggregate<>(varName, aggregate);
+    }
+
+    public static <T> MapAggregate<T> map(
+            Aggregate<? super Map<String, Concept>, T> aggregate) {
+        return new MapAggregate<>(aggregate);
     }
 
     /**
