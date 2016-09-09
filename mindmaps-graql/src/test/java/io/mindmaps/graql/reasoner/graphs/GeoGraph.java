@@ -19,14 +19,14 @@
 package io.mindmaps.graql.reasoner.graphs;
 
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.core.implementation.exception.MindmapsValidationException;
-import io.mindmaps.core.model.EntityType;
-import io.mindmaps.core.model.Instance;
-import io.mindmaps.core.model.RelationType;
-import io.mindmaps.core.model.Resource;
-import io.mindmaps.core.model.ResourceType;
-import io.mindmaps.core.model.RoleType;
-import io.mindmaps.core.model.RuleType;
+import io.mindmaps.exception.MindmapsValidationException;
+import io.mindmaps.concept.EntityType;
+import io.mindmaps.concept.Instance;
+import io.mindmaps.concept.RelationType;
+import io.mindmaps.concept.Resource;
+import io.mindmaps.concept.ResourceType;
+import io.mindmaps.concept.RoleType;
+import io.mindmaps.concept.RuleType;
 import io.mindmaps.factory.MindmapsTestGraphFactory;
 
 public class GeoGraph {
@@ -197,7 +197,7 @@ public class GeoGraph {
         RuleType inferenceRule = mindmaps.getMetaRuleInference();
 
         String transitivity_LHS = "match " +
-                "(geo-entity $x, entity-location $y) isa is-located-in;\n" +
+                "(geo-entity $x, entity-location $y) isa is-located-in;" +
                 "(geo-entity $y, entity-location $z) isa is-located-in; select $x, $z";
 
         String transitivity_RHS = "match " +

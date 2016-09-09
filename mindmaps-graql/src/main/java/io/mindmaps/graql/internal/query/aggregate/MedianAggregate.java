@@ -18,7 +18,7 @@
 
 package io.mindmaps.graql.internal.query.aggregate;
 
-import io.mindmaps.core.model.Concept;
+import io.mindmaps.concept.Concept;
 
 import java.util.List;
 import java.util.Map;
@@ -30,11 +30,11 @@ import static java.util.stream.Collectors.toList;
 /**
  * Aggregate that finds median of a match query.
  */
-public class MedianAggregate extends AbstractAggregate<Map<String, Concept>, Optional<Number>> {
+class MedianAggregate extends AbstractAggregate<Map<String, Concept>, Optional<Number>> {
 
     private final String varName;
 
-    public MedianAggregate(String varName) {
+    MedianAggregate(String varName) {
         this.varName = varName;
     }
 

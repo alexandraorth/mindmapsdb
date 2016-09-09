@@ -20,7 +20,7 @@ package io.mindmaps.graql.query;
 
 import com.google.common.collect.Sets;
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.core.model.Type;
+import io.mindmaps.concept.Type;
 import io.mindmaps.example.MovieGraphFactory;
 import io.mindmaps.factory.MindmapsTestGraphFactory;
 import io.mindmaps.graql.DeleteQuery;
@@ -28,7 +28,7 @@ import io.mindmaps.graql.InsertQuery;
 import io.mindmaps.graql.MatchQuery;
 import io.mindmaps.graql.QueryBuilder;
 import io.mindmaps.graql.admin.PatternAdmin;
-import io.mindmaps.graql.internal.query.Conjunction;
+import io.mindmaps.graql.admin.Conjunction;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;

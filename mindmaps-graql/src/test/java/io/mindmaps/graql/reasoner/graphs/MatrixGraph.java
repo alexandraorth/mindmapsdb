@@ -19,9 +19,9 @@
 package io.mindmaps.graql.reasoner.graphs;
 
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.core.model.EntityType;
-import io.mindmaps.core.model.RelationType;
-import io.mindmaps.core.model.RoleType;
+import io.mindmaps.concept.EntityType;
+import io.mindmaps.concept.RelationType;
+import io.mindmaps.concept.RoleType;
 
 public class MatrixGraph extends GenericGraph{
 
@@ -44,7 +44,9 @@ public class MatrixGraph extends GenericGraph{
         RelationType R1 = mindmaps.getRelationType("R1");
         RelationType R2 = mindmaps.getRelationType("R2");
 
-        for(int i = 0 ; i <= m ;i++)
+        mindmaps.putEntity("a0", mindmaps.getEntityType("start"));
+        mindmaps.putEntity("a" + m, mindmaps.getEntityType("end"));
+        for(int i = 1 ; i < m ;i++)
             mindmaps.putEntity("a" + i, aEntity);
 
         for(int i = 1 ; i < m ;i++)

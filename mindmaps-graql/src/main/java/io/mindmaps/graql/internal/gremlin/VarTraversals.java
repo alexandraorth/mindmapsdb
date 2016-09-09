@@ -18,14 +18,14 @@
 
 package io.mindmaps.graql.internal.gremlin;
 
-import io.mindmaps.constants.ErrorMessage;
-import io.mindmaps.core.Data;
-import io.mindmaps.constants.DataType;
+import io.mindmaps.concept.ResourceType;
 import io.mindmaps.graql.Graql;
-import io.mindmaps.graql.admin.ValuePredicateAdmin;
 import io.mindmaps.graql.Var;
-import io.mindmaps.graql.internal.GraqlType;
+import io.mindmaps.graql.admin.ValuePredicateAdmin;
 import io.mindmaps.graql.admin.VarAdmin;
+import io.mindmaps.graql.internal.util.GraqlType;
+import io.mindmaps.util.ErrorMessage;
+import io.mindmaps.util.Schema;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__;
 
@@ -35,12 +35,12 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-import static io.mindmaps.constants.DataType.ConceptProperty.*;
-import static io.mindmaps.constants.DataType.ConceptPropertyUnique.ITEM_IDENTIFIER;
-import static io.mindmaps.constants.DataType.EdgeLabel.*;
-import static io.mindmaps.constants.DataType.EdgeProperty.TO_TYPE;
 import static io.mindmaps.graql.Graql.eq;
 import static io.mindmaps.graql.internal.gremlin.FragmentPriority.*;
+import static io.mindmaps.util.Schema.ConceptProperty.*;
+import static io.mindmaps.util.Schema.ConceptPropertyUnique.ITEM_IDENTIFIER;
+import static io.mindmaps.util.Schema.EdgeLabel.*;
+import static io.mindmaps.util.Schema.EdgeProperty.TO_TYPE;
 
 /**
  * A collection of {@code MultiTraversals} that describe a {@code Var}.
@@ -97,20 +97,20 @@ public class VarTraversals {
         // Check all predicates on VALUE
         var.getValuePredicates().forEach(predicate -> {
             shortcutTraversal.setInvalid();
-            DataType.ConceptProperty value = getValuePropertyForPredicate(predicate);
+            Schema.ConceptProperty value = getValuePropertyForPredicate(predicate);
             addPropertyPattern(getName(), value.name(), predicate, getValuePriority(predicate));
         });
 
         // Check all predicates on RULE_LHS (for rules)
         var.getLhs().ifPresent(lhs -> {
             shortcutTraversal.setInvalid();
-            addPropertyPattern(getName(), DataType.ConceptProperty.RULE_LHS.name(), eq(lhs).admin(), VALUE_NONSPECIFIC);
+            addPropertyPattern(getName(), Schema.ConceptProperty.RULE_LHS.name(), eq(lhs).admin(), VALUE_NONSPECIFIC);
         });
 
         // Check all predicates on RULE_RHS (for rules)
         var.getRhs().ifPresent(rhs -> {
             shortcutTraversal.setInvalid();
-            addPropertyPattern(getName(), DataType.ConceptProperty.RULE_RHS.name(), eq(rhs).admin(), VALUE_NONSPECIFIC);
+            addPropertyPattern(getName(), Schema.ConceptProperty.RULE_RHS.name(), eq(rhs).admin(), VALUE_NONSPECIFIC);
         });
 
         var.getResourcePredicates().forEach((type, predicates) -> {
@@ -228,7 +228,7 @@ public class VarTraversals {
      */
     private void addResourcePattern(String typeId, ValuePredicateAdmin predicate) {
         String resource = addResourcePattern(typeId);
-        DataType.ConceptProperty value = getValuePropertyForPredicate(predicate);
+        Schema.ConceptProperty value = getValuePropertyForPredicate(predicate);
         addPropertyPattern(resource, value.name(), predicate, getValuePriority(predicate));
     }
 
@@ -238,7 +238,7 @@ public class VarTraversals {
      * @param var the variable expected at the end of the edge
      */
     @SuppressWarnings("unchecked")
-    private void addEdgePattern(DataType.EdgeLabel edgeLabel, VarAdmin var) {
+    private void addEdgePattern(Schema.EdgeLabel edgeLabel, VarAdmin var) {
         String other = var.getName();
         Optional<String> typeName = var.getId();
 
@@ -371,12 +371,12 @@ public class VarTraversals {
         );
 
         Var owner = Graql.id(GraqlType.HAS_RESOURCE_OWNER.getId(typeId))
-                .isa(DataType.ConceptMeta.ROLE_TYPE.getId());
+                .isa(Schema.MetaType.ROLE_TYPE.getId());
         Var value = Graql.id(GraqlType.HAS_RESOURCE_VALUE.getId(typeId))
-                .isa(DataType.ConceptMeta.ROLE_TYPE.getId());
+                .isa(Schema.MetaType.ROLE_TYPE.getId());
 
         Var relationType = Graql.id(GraqlType.HAS_RESOURCE.getId(typeId))
-                .isa(DataType.ConceptMeta.RELATION_TYPE.getId())
+                .isa(Schema.MetaType.RELATION_TYPE.getId())
                 .hasRole(owner).hasRole(value);
 
         addEdgePattern(PLAYS_ROLE, owner.admin());
@@ -426,8 +426,8 @@ public class VarTraversals {
      * @param predicate a predicate to test on a vertex
      * @return the correct VALUE property to check on the vertex for the given predicate
      */
-    private DataType.ConceptProperty getValuePropertyForPredicate(ValuePredicateAdmin predicate) {
+    private Schema.ConceptProperty getValuePropertyForPredicate(ValuePredicateAdmin predicate) {
         Object value = predicate.getInnerValues().iterator().next();
-        return Data.SUPPORTED_TYPES.get(value.getClass().getTypeName()).getConceptProperty();
+        return ResourceType.DataType.SUPPORTED_TYPES.get(value.getClass().getTypeName()).getConceptProperty();
     }
 }

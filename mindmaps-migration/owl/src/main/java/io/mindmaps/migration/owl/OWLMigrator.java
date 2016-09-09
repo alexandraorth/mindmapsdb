@@ -1,30 +1,29 @@
 /*
- *  MindmapsDB - A Distributed Semantic Database
- *  Copyright (C) 2016  Mindmaps Research Ltd
+ * MindmapsDB - A Distributed Semantic Database
+ * Copyright (C) 2016  Mindmaps Research Ltd
  *
- *  MindmapsDB is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
+ * MindmapsDB is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *  MindmapsDB is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ * MindmapsDB is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with MindmapsDB. If not, see <http://www.gnu.org/licenses/gpl.txt>.
+ * You should have received a copy of the GNU General Public License
+ * along with MindmapsDB. If not, see <http://www.gnu.org/licenses/gpl.txt>.
  */
 package io.mindmaps.migration.owl;
 
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.core.Data;
-import io.mindmaps.core.implementation.exception.MindmapsValidationException;
-import io.mindmaps.core.model.Entity;
-import io.mindmaps.core.model.EntityType;
-import io.mindmaps.core.model.RelationType;
-import io.mindmaps.core.model.ResourceType;
-import io.mindmaps.core.model.RoleType;
+import io.mindmaps.exception.MindmapsValidationException;
+import io.mindmaps.concept.Entity;
+import io.mindmaps.concept.EntityType;
+import io.mindmaps.concept.RelationType;
+import io.mindmaps.concept.ResourceType;
+import io.mindmaps.concept.RoleType;
 import org.semanticweb.owlapi.model.OWLAnnotationProperty;
 import org.semanticweb.owlapi.model.OWLClass;
 import org.semanticweb.owlapi.model.OWLClassAssertionAxiom;
@@ -62,10 +61,6 @@ public class OWLMigrator {
         this.namer = new Namer(){};
     }
 
-    public MindmapsGraph getGraph() {
-        return graph;
-    }
-    
     public OWLMigrator namer(Namer namer) {
         this.namer = namer;
         return this;
@@ -102,19 +97,19 @@ public class OWLMigrator {
         graph.commit();
     }
 
-    public Data<?> owlBuiltInToMindmapsDatatype(OWL2Datatype propertyType) {
+    public ResourceType.DataType<?> owlBuiltInToMindmapsDatatype(OWL2Datatype propertyType) {
         if (propertyType == OWL2Datatype.XSD_BOOLEAN)
-            return Data.BOOLEAN;
+            return ResourceType.DataType.BOOLEAN;
         else if (propertyType == OWL2Datatype.XSD_FLOAT || 
                  propertyType == OWL2Datatype.XSD_DOUBLE ||
                  propertyType == OWL2Datatype.OWL_REAL ||
                  propertyType == OWL2Datatype.OWL_RATIONAL ||
                  propertyType == OWL2Datatype.XSD_DECIMAL)
-            return Data.DOUBLE;
+            return ResourceType.DataType.DOUBLE;
         else if (propertyType.isNumeric())
-            return Data.LONG;
+            return ResourceType.DataType.LONG;
         else
-            return Data.STRING;
+            return ResourceType.DataType.STRING;
     }
     
     public EntityType owlThingEntityType() {
@@ -169,7 +164,7 @@ public class OWLMigrator {
 
     public RelationType relation(OWLAnnotationProperty property) {
         RelationType relType = graph.putRelationType(namer.resourceRelation(property.getIRI()));
-        ResourceType<?> resourceType = graph.putResourceType(namer.fromIri(property.getIRI()), Data.STRING);
+        ResourceType<?> resourceType = graph.putResourceType(namer.fromIri(property.getIRI()), ResourceType.DataType.STRING);
         relType.hasRole(entityRole(owlThingEntityType(), resourceType));
         relType.hasRole(resourceRole(resourceType));
         return relType;
@@ -203,7 +198,7 @@ public class OWLMigrator {
                 .findFirst();
             return ax.isPresent() ? ax.get().getRange().asOWLDatatype().getBuiltInDatatype() : null;
         });
-        Data<?> mindmapsType = propertyType == null ? Data.STRING : owlBuiltInToMindmapsDatatype(propertyType);
+        ResourceType.DataType<?> mindmapsType = propertyType == null ? ResourceType.DataType.STRING : owlBuiltInToMindmapsDatatype(propertyType);
         ResourceType<?> resourceType = graph.putResourceType(namer.fromIri(property.getIRI()), mindmapsType);
         return resourceType;        
     }   

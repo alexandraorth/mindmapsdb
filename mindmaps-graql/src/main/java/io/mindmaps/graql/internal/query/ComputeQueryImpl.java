@@ -19,8 +19,8 @@
 package io.mindmaps.graql.internal.query;
 
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.constants.ErrorMessage;
-import io.mindmaps.core.model.Type;
+import io.mindmaps.util.ErrorMessage;
+import io.mindmaps.concept.Type;
 import io.mindmaps.graql.ComputeQuery;
 import io.mindmaps.graql.internal.analytics.Analytics;
 
@@ -28,25 +28,29 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 
-public class ComputeQueryImpl implements ComputeQuery {
+class ComputeQueryImpl implements ComputeQuery {
 
+    private final MindmapsGraph graph;
     private Optional<Set<String>> typeIds;
     private final String computeMethod;
 
-    public ComputeQueryImpl(String computeMethod) {
+    ComputeQueryImpl(MindmapsGraph graph, String computeMethod) {
+        this.graph = graph;
         this.computeMethod = computeMethod;
         this.typeIds = Optional.empty();
     }
 
-    public ComputeQueryImpl(String computeMethod, Set<String> typeIds) {
+    ComputeQueryImpl(MindmapsGraph graph, String computeMethod, Set<String> typeIds) {
+        this.graph = graph;
         this.computeMethod = computeMethod;
         this.typeIds = Optional.of(typeIds);
     }
 
     @Override
-    public Object execute(MindmapsGraph graph) throws ExecutionException, InterruptedException {
+    public Object execute() throws ExecutionException, InterruptedException {
         String keyspace = graph.getKeyspace();
 
         Analytics analytics = typeIds.map(ids -> {
@@ -75,7 +79,8 @@ public class ComputeQueryImpl implements ComputeQuery {
 
     @Override
     public String toString() {
-        return "compute "+computeMethod+"()";
+        String subtypes = typeIds.map(types -> " in " + types.stream().collect(joining(", "))).orElse("");
+        return "compute " + computeMethod + subtypes;
     }
 
 }

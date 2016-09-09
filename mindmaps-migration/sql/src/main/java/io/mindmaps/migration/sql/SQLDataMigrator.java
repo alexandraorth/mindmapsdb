@@ -1,8 +1,26 @@
+/*
+ * MindmapsDB - A Distributed Semantic Database
+ * Copyright (C) 2016  Mindmaps Research Ltd
+ *
+ * MindmapsDB is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MindmapsDB is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MindmapsDB. If not, see <http://www.gnu.org/licenses/gpl.txt>.
+ */
+
 package io.mindmaps.migration.sql;
 
 import com.google.common.base.Throwables;
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.core.Data;
+import io.mindmaps.concept.ResourceType;
 import io.mindmaps.engine.loader.Loader;
 import io.mindmaps.graql.Var;
 import io.mindmaps.migration.sql.SQLModel.SQLTable;
@@ -229,7 +247,7 @@ public class SQLDataMigrator implements Iterable<Collection<Var>>, Closeable {
      */
     private Collection<Var> migrateColumns(SQLTable table, ResultSet row, Var instance) throws SQLException{
         String tableType = table.getEntityType();
-        Map<String, Data> columns = table.getColumns();
+        Map<String, ResourceType.DataType> columns = table.getColumns();
         Map<String, String> foreign = table.getForeignKeyColumns();
 
         ResultSetMetaData metadata = row.getMetaData();
@@ -238,7 +256,7 @@ public class SQLDataMigrator implements Iterable<Collection<Var>>, Closeable {
 
             String columnName = metadata.getColumnName(i);
             Object columnValue = row.getObject(columnName);
-            Data dataType = columns.get(columnName);
+            ResourceType.DataType dataType = columns.get(columnName);
 
             String foreignKey = foreign.get(columnName);
 
@@ -305,14 +323,14 @@ public class SQLDataMigrator implements Iterable<Collection<Var>>, Closeable {
      * @return value of column in row
      * @throws SQLException
      */
-    private Object cast(Data type, String column, ResultSet row) throws SQLException {
-        if(Data.BOOLEAN == type){
+    private Object cast(ResourceType.DataType type, String column, ResultSet row) throws SQLException {
+        if(ResourceType.DataType.BOOLEAN == type){
             return row.getBoolean(column);
-        } else if (Data.STRING == type){
+        } else if (ResourceType.DataType.STRING == type){
             return row.getString(column);
-        } else if (Data.LONG == type){
+        } else if (ResourceType.DataType.LONG == type){
             return row.getLong(column);
-        } else if (Data.DOUBLE == type){
+        } else if (ResourceType.DataType.DOUBLE == type){
             return row.getDouble(column);
         }
         return null;

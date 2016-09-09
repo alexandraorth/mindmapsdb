@@ -19,13 +19,13 @@
 package io.mindmaps.graql.reasoner.graphs;
 
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.core.implementation.exception.MindmapsValidationException;
-import io.mindmaps.core.model.EntityType;
-import io.mindmaps.core.model.Instance;
-import io.mindmaps.core.model.RelationType;
-import io.mindmaps.core.model.RoleType;
-import io.mindmaps.core.model.Rule;
-import io.mindmaps.core.model.RuleType;
+import io.mindmaps.exception.MindmapsValidationException;
+import io.mindmaps.concept.EntityType;
+import io.mindmaps.concept.Instance;
+import io.mindmaps.concept.RelationType;
+import io.mindmaps.concept.RoleType;
+import io.mindmaps.concept.Rule;
+import io.mindmaps.concept.RuleType;
 import io.mindmaps.factory.MindmapsTestGraphFactory;
 
 public class AbstractGraph {

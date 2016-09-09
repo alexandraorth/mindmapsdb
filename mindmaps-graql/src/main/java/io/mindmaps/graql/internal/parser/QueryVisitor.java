@@ -19,10 +19,9 @@
 package io.mindmaps.graql.internal.parser;
 
 import com.google.common.collect.ImmutableMap;
-import io.mindmaps.core.Data;
+import io.mindmaps.concept.ResourceType;
 import io.mindmaps.graql.*;
-import io.mindmaps.graql.internal.StringConverter;
-import io.mindmaps.graql.internal.query.ComputeQueryImpl;
+import io.mindmaps.graql.internal.util.StringConverter;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.misc.Interval;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -126,9 +125,9 @@ public class QueryVisitor extends GraqlBaseVisitor {
 
         if (ctx.subgraph() != null) {
             Set<String> typeIds = visitSubgraph(ctx.subgraph());
-            return new ComputeQueryImpl(computeMethod, typeIds);
+            return queryBuilder.compute(computeMethod, typeIds);
         } else {
-            return new ComputeQueryImpl(computeMethod);
+            return queryBuilder.compute(computeMethod);
         }
     }
 
@@ -306,7 +305,7 @@ public class QueryVisitor extends GraqlBaseVisitor {
 
     @Override
     public Object visitPropResource(GraqlParser.PropResourceContext ctx) {
-        patterns.peek().hasResource(visitId(ctx.id()));
+        patterns.peek().hasResource(visitVariable(ctx.variable()));
         return null;
     }
 
@@ -588,16 +587,16 @@ public class QueryVisitor extends GraqlBaseVisitor {
         return order.getText().equals("asc");
     }
 
-    private Data getDatatype(TerminalNode datatype) {
+    private ResourceType.DataType getDatatype(TerminalNode datatype) {
         switch (datatype.getText()) {
             case "long":
-                return Data.LONG;
+                return ResourceType.DataType.LONG;
             case "double":
-                return Data.DOUBLE;
+                return ResourceType.DataType.DOUBLE;
             case "string":
-                return Data.STRING;
+                return ResourceType.DataType.STRING;
             case "boolean":
-                return Data.BOOLEAN;
+                return ResourceType.DataType.BOOLEAN;
             default:
                 throw new RuntimeException("Unrecognized datatype " + datatype.getText());
         }

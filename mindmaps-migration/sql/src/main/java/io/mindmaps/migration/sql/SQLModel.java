@@ -1,13 +1,36 @@
+/*
+ * MindmapsDB - A Distributed Semantic Database
+ * Copyright (C) 2016  Mindmaps Research Ltd
+ *
+ * MindmapsDB is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MindmapsDB is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MindmapsDB. If not, see <http://www.gnu.org/licenses/gpl.txt>.
+ */
+
 package io.mindmaps.migration.sql;
 
-import io.mindmaps.core.Data;
+import io.mindmaps.concept.ResourceType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Class to hold metadata of a SQL table.
@@ -80,7 +103,7 @@ public class SQLModel implements Iterable<SQLModel.SQLTable> {
         private String type;
         private List<String> primaryKeyColumns;
         private Map<String, String> foreignKeyColumns;
-        private Map<String, Data> columnTypes;
+        private Map<String, ResourceType.DataType> columnTypes;
 
          SQLTable(String type, Connection connection) {
             this.type = type;
@@ -116,7 +139,7 @@ public class SQLModel implements Iterable<SQLModel.SQLTable> {
             return foreignKeyColumns;
         }
 
-        public Map<String, Data> getColumns() {
+        public Map<String, ResourceType.DataType> getColumns() {
             return columnTypes;
         }
 
@@ -130,7 +153,7 @@ public class SQLModel implements Iterable<SQLModel.SQLTable> {
 
             while(results.next()){
                 String name = results.getString("COLUMN_NAME");
-                Data type = SQLType.getDatatype(results.getInt("DATA_TYPE"));
+                ResourceType.DataType type = SQLType.getDatatype(results.getInt("DATA_TYPE"));
 
                 columnTypes.put(name, type);
             }

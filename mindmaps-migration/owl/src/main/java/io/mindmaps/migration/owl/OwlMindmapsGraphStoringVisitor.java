@@ -1,24 +1,30 @@
 /*
- *  MindmapsDB - A Distributed Semantic Database
- *  Copyright (C) 2016  Mindmaps Research Ltd
+ * MindmapsDB - A Distributed Semantic Database
+ * Copyright (C) 2016  Mindmaps Research Ltd
  *
- *  MindmapsDB is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
+ * MindmapsDB is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *  MindmapsDB is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ * MindmapsDB is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with MindmapsDB. If not, see <http://www.gnu.org/licenses/gpl.txt>.
+ * You should have received a copy of the GNU General Public License
+ * along with MindmapsDB. If not, see <http://www.gnu.org/licenses/gpl.txt>.
  */
 package io.mindmaps.migration.owl;
 
-import java.util.Optional;
-
+import io.mindmaps.concept.Concept;
+import io.mindmaps.concept.Entity;
+import io.mindmaps.concept.EntityType;
+import io.mindmaps.concept.RelationType;
+import io.mindmaps.concept.Resource;
+import io.mindmaps.concept.ResourceType;
+import io.mindmaps.concept.RoleType;
+import io.mindmaps.exception.ConceptException;
 import org.semanticweb.owlapi.model.OWLAnnotationAssertionAxiom;
 import org.semanticweb.owlapi.model.OWLAnnotationProperty;
 import org.semanticweb.owlapi.model.OWLAxiomVisitorEx;
@@ -39,15 +45,7 @@ import org.semanticweb.owlapi.model.OWLSubClassOfAxiom;
 import org.semanticweb.owlapi.model.OWLSubDataPropertyOfAxiom;
 import org.semanticweb.owlapi.model.OWLSubObjectPropertyOfAxiom;
 
-import io.mindmaps.core.Data;
-import io.mindmaps.core.implementation.exception.ConceptException;
-import io.mindmaps.core.model.Concept;
-import io.mindmaps.core.model.Entity;
-import io.mindmaps.core.model.EntityType;
-import io.mindmaps.core.model.RelationType;
-import io.mindmaps.core.model.Resource;
-import io.mindmaps.core.model.ResourceType;
-import io.mindmaps.core.model.RoleType;
+import java.util.Optional;
 
 /**
  * <p>
@@ -72,8 +70,8 @@ public class OwlMindmapsGraphStoringVisitor implements OWLAxiomVisitorEx<Concept
     public OwlMindmapsGraphStoringVisitor prepareOWL() {
         migrator.entityType(migrator.ontology().getOWLOntologyManager().getOWLDataFactory().getOWLClass(OwlModel.THING.owlname()));
         migrator.relation(migrator.ontology().getOWLOntologyManager().getOWLDataFactory().getOWLObjectProperty(OwlModel.OBJECT_PROPERTY.owlname()))
-          .hasRole(migrator.getGraph().putRoleType(OwlModel.OBJECT.owlname()))
-          .hasRole(migrator.getGraph().putRoleType(OwlModel.SUBJECT.owlname()));
+          .hasRole(migrator.graph().putRoleType(OwlModel.OBJECT.owlname()))
+          .hasRole(migrator.graph().putRoleType(OwlModel.SUBJECT.owlname()));
         return this;
     }
     
@@ -205,7 +203,7 @@ public class OwlMindmapsGraphStoringVisitor implements OWLAxiomVisitorEx<Concept
         Entity subject = migrator.entity(axiom.getSubject().asOWLNamedIndividual());
         Entity object = migrator.entity(axiom.getObject().asOWLNamedIndividual());
         RelationType relationType = migrator.relation(axiom.getProperty().asOWLObjectProperty());       
-        return migrator.getGraph().addRelation(relationType)
+        return migrator.graph().addRelation(relationType)
                  .putRolePlayer(migrator.subjectRole(relationType), subject)
                  .putRolePlayer(migrator.objectRole(relationType), object);
     }
@@ -220,18 +218,18 @@ public class OwlMindmapsGraphStoringVisitor implements OWLAxiomVisitorEx<Concept
         Entity entity = migrator.entity(axiom.getSubject().asOWLNamedIndividual());
         String valueAsString =  axiom.getObject().getLiteral();
         Object value = valueAsString;
-        if (resourceType.getDataType() == Data.BOOLEAN)
+        if (resourceType.getDataType() == ResourceType.DataType.BOOLEAN)
             value = Boolean.parseBoolean(valueAsString);
-        else if (resourceType.getDataType() == Data.LONG)
+        else if (resourceType.getDataType() == ResourceType.DataType.LONG)
             value = Long.parseLong(valueAsString);
-        else if (resourceType.getDataType() == Data.DOUBLE)
+        else if (resourceType.getDataType() == ResourceType.DataType.DOUBLE)
             value = Double.parseDouble(valueAsString);
-        Resource resource = migrator.getGraph().putResource(value, resourceType);
+        Resource resource = migrator.graph().putResource(value, resourceType);
         RelationType propertyRelation = migrator.relation(axiom.getProperty().asOWLDataProperty());
         RoleType entityRole = migrator.entityRole(entity.type(), resource.type());
         RoleType resourceRole = migrator.resourceRole(resource.type());
         try {       
-            return migrator.getGraph().addRelation(propertyRelation)
+            return migrator.graph().addRelation(propertyRelation)
                      .putRolePlayer(entityRole, entity)
                      .putRolePlayer(resourceRole, resource);
         }
@@ -254,9 +252,9 @@ public class OwlMindmapsGraphStoringVisitor implements OWLAxiomVisitorEx<Concept
         @SuppressWarnings("unchecked")
         ResourceType<String> resourceType = (ResourceType<String>)visit(axiom.getProperty());
         Entity entity = migrator.entity((OWLNamedIndividual)axiom.getSubject());
-        Resource<String> resource = migrator.getGraph().putResource(value.get().getLiteral(), resourceType);
+        Resource<String> resource = migrator.graph().putResource(value.get().getLiteral(), resourceType);
         RelationType propertyRelation = migrator.relation(axiom.getProperty());
-        return migrator.getGraph().addRelation(propertyRelation)
+        return migrator.graph().addRelation(propertyRelation)
                  .putRolePlayer(migrator.entityRole(entity.type(), resource.type()), entity)
                  .putRolePlayer(migrator.resourceRole(resource.type()), resource);
     }   

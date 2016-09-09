@@ -17,7 +17,7 @@
  */
 package io.mindmaps.graql.internal.reasoner.predicate;
 
-import io.mindmaps.constants.ErrorMessage;
+import io.mindmaps.util.ErrorMessage;
 import io.mindmaps.graql.admin.ValuePredicateAdmin;
 import io.mindmaps.graql.admin.VarAdmin;
 import io.mindmaps.graql.internal.reasoner.container.Query;
@@ -43,11 +43,10 @@ public class Atom extends AtomBase{
         super(a);
         this.val = extractValue(a.getPattern().asVar());
     }
-
     @Override
     public boolean isUnary(){ return true;}
 
-    @Override
+        @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof Atom)) return false;
         Atom a2 = (Atom) obj;

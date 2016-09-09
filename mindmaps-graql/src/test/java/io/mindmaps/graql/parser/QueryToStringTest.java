@@ -18,10 +18,12 @@
 
 package io.mindmaps.graql.parser;
 
+import com.google.common.collect.Sets;
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.core.Data;
+import io.mindmaps.concept.ResourceType;
 import io.mindmaps.example.MovieGraphFactory;
 import io.mindmaps.factory.MindmapsTestGraphFactory;
+import io.mindmaps.graql.ComputeQuery;
 import io.mindmaps.graql.MatchQuery;
 import io.mindmaps.graql.QueryBuilder;
 import io.mindmaps.graql.QueryParser;
@@ -89,7 +91,7 @@ public class QueryToStringTest {
 
     @Test
     public void testQueryWithDatatypeToString() {
-        assertValidToString(qb.match(var("x").datatype(Data.LONG)));
+        assertValidToString(qb.match(var("x").datatype(ResourceType.DataType.LONG)));
     }
 
     @Test
@@ -136,6 +138,17 @@ public class QueryToStringTest {
     @Test
     public void testHasResource() {
         assertEquals("insert $x has-resource thingy;", qb.insert(var("x").hasResource("thingy")).toString());
+    }
+
+    @Test
+    public void testComputeQueryToString() {
+        assertEquals("compute count", qb.compute("count").toString());
+    }
+
+    @Test
+    public void testComputeQuerySubgraphToString() {
+        ComputeQuery query = qb.compute("degrees", Sets.newHashSet("movie", "person"));
+        assertEquals("compute degrees in movie, person", query.toString());
     }
 
     @Test(expected=UnsupportedOperationException.class)

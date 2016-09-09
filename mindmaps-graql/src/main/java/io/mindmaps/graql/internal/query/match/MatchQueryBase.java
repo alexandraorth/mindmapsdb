@@ -20,14 +20,14 @@ package io.mindmaps.graql.internal.query.match;
 
 import com.google.common.collect.Sets;
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.constants.ErrorMessage;
-import io.mindmaps.core.model.Concept;
-import io.mindmaps.core.model.Type;
+import io.mindmaps.concept.Concept;
+import io.mindmaps.concept.Type;
+import io.mindmaps.graql.admin.Conjunction;
 import io.mindmaps.graql.admin.PatternAdmin;
 import io.mindmaps.graql.admin.VarAdmin;
 import io.mindmaps.graql.internal.gremlin.Query;
-import io.mindmaps.graql.internal.query.Conjunction;
 import io.mindmaps.graql.internal.validation.MatchQueryValidator;
+import io.mindmaps.util.ErrorMessage;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 
@@ -37,13 +37,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.mindmaps.constants.DataType.ConceptPropertyUnique.ITEM_IDENTIFIER;
+import static io.mindmaps.util.Schema.ConceptPropertyUnique.ITEM_IDENTIFIER;
 import static java.util.stream.Collectors.toSet;
 
 /**
  * Base MatchQuery implementation that executes the gremlin traversal
  */
-public class MatchQueryBase extends AbstractMatchQuery {
+public class MatchQueryBase implements MatchQueryInternal {
 
     private final Conjunction<PatternAdmin> pattern;
 
@@ -59,9 +59,7 @@ public class MatchQueryBase extends AbstractMatchQuery {
     }
 
     @Override
-    public Stream<Map<String, Concept>> stream(
-            Optional<MindmapsGraph> optionalGraph, Optional<MatchOrder> order
-    ) {
+    public Stream<Map<String, Concept>> stream(Optional<MindmapsGraph> optionalGraph, Optional<MatchOrder> order) {
         MindmapsGraph graph = optionalGraph.orElseThrow(
                 () -> new IllegalStateException(ErrorMessage.NO_GRAPH.getMessage())
         );

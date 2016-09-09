@@ -1,12 +1,29 @@
+/*
+ * MindmapsDB - A Distributed Semantic Database
+ * Copyright (C) 2016  Mindmaps Research Ltd
+ *
+ * MindmapsDB is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MindmapsDB is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MindmapsDB. If not, see <http://www.gnu.org/licenses/gpl.txt>.
+ */
+
 package io.mindmaps.graql.internal.analytics;
 
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.core.Data;
-import io.mindmaps.core.implementation.exception.MindmapsValidationException;
-import io.mindmaps.core.model.EntityType;
-import io.mindmaps.core.model.RelationType;
-import io.mindmaps.core.model.ResourceType;
-import io.mindmaps.core.model.RoleType;
+import io.mindmaps.exception.MindmapsValidationException;
+import io.mindmaps.concept.EntityType;
+import io.mindmaps.concept.RelationType;
+import io.mindmaps.concept.ResourceType;
+import io.mindmaps.concept.RoleType;
 import io.mindmaps.engine.loader.DistributedLoader;
 import io.mindmaps.factory.MindmapsClient;
 import org.junit.Before;
@@ -87,7 +104,7 @@ public class ScalingTestIT {
         Set<String> superNodes = makeSuperNodes();
 
         // add resources in advance
-        ResourceType<Long> resourceType = graph.putResourceType("degree", Data.LONG);
+        ResourceType<Long> resourceType = graph.putResourceType("degree", ResourceType.DataType.LONG);
         for (long i = 0;i<MAX_SIZE;i++) {
             graph.putResource(i,resourceType);
         }
@@ -183,7 +200,7 @@ public class ScalingTestIT {
                 simpleOntology();
 
                 // add resources in advance
-                ResourceType<Long> resourceType = graph.putResourceType("degree", Data.LONG);
+                ResourceType<Long> resourceType = graph.putResourceType("degree", ResourceType.DataType.LONG);
                 for (long k = 0;k<MAX_SIZE;k++) {
                     graph.putResource(k,resourceType);
                 }

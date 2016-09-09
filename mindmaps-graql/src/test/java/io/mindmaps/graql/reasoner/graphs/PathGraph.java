@@ -19,9 +19,9 @@
 package io.mindmaps.graql.reasoner.graphs;
 
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.core.model.EntityType;
-import io.mindmaps.core.model.RelationType;
-import io.mindmaps.core.model.RoleType;
+import io.mindmaps.concept.EntityType;
+import io.mindmaps.concept.RelationType;
+import io.mindmaps.concept.RoleType;
 
 import static com.google.common.math.IntMath.pow;
 
@@ -37,11 +37,12 @@ public class PathGraph extends GenericGraph {
 
     private static void buildExtensionalDB(int n, int children) {
         EntityType vertex = mindmaps.getEntityType("vertex");
+        EntityType startVertex = mindmaps.getEntityType("start-vertex");
         RoleType arcFrom = mindmaps.getRoleType("arc-from");
         RoleType arcTo = mindmaps.getRoleType("arc-to");
 
         RelationType arc = mindmaps.getRelationType("arc");
-        mindmaps.putEntity("a0", vertex);
+        mindmaps.putEntity("a0", startVertex);
 
         for(int i = 1 ; i <= n ;i++) {
             int m = pow(children, i);

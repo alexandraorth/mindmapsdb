@@ -233,6 +233,20 @@ public class GraqlShellTest {
     }
 
     @Test
+    public void testDuplicateRelation() throws IOException {
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        testShell(
+                "insert R isa relation-type, has-role R1, has-role R2; R1 isa role-type; R2 isa role-type;\n" +
+                "insert X isa entity-type, plays-role R1, plays-role R2;\n" +
+                "insert x isa X; (R1 x, R2 x) isa R\n" +
+                "insert x isa X; (R1 x, R2 x) isa R\n",
+                err
+        );
+
+        assertThat(err.toString().toLowerCase(), allOf(containsString("exists"), containsString("relation")));
+    }
+
+    @Test
     public void testLimit() throws IOException {
         String result = testShell("match $x isa concept-type limit 1\n");
 
@@ -271,13 +285,15 @@ public class GraqlShellTest {
         PrintStream out = new PrintStream(bout);
         PrintStream err = new PrintStream(berr);
 
-        System.setIn(in);
-        System.setOut(out);
-        System.setErr(err);
+        try {
+            System.setIn(in);
+            System.setOut(out);
+            System.setErr(err);
 
-        GraqlShell.runShell(args, expectedVersion, client);
-
-        resetIO();
+            GraqlShell.runShell(args, expectedVersion, client);
+        } finally {
+            resetIO();
+        }
 
         out.flush();
         err.flush();

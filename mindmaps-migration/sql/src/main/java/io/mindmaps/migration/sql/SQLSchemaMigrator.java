@@ -1,8 +1,26 @@
+/*
+ * MindmapsDB - A Distributed Semantic Database
+ * Copyright (C) 2016  Mindmaps Research Ltd
+ *
+ * MindmapsDB is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MindmapsDB is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MindmapsDB. If not, see <http://www.gnu.org/licenses/gpl.txt>.
+ */
+
 package io.mindmaps.migration.sql;
 
 import com.google.common.collect.Lists;
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.core.Data;
+import io.mindmaps.concept.ResourceType;
 import io.mindmaps.engine.loader.Loader;
 import io.mindmaps.graql.Var;
 import io.mindmaps.migration.sql.SQLModel.SQLTable;
@@ -91,12 +109,12 @@ public class SQLSchemaMigrator implements Closeable {
         List<Var> vars = new ArrayList<>();
 
         String tableType = currentTable.getEntityType();
-        Map<String, Data> columns = currentTable.getColumns();
+        Map<String, ResourceType.DataType> columns = currentTable.getColumns();
         Map<String, String> foreignColumns = currentTable.getForeignKeyColumns();
 
         for(String column: columns.keySet()){
 
-            Data columnType = columns.get(column);
+            ResourceType.DataType columnType = columns.get(column);
 
             if(foreignColumns.containsKey(column)){
                 vars.addAll(migrateAsRelation(tableType, column, foreignColumns.get(column)));
@@ -127,7 +145,7 @@ public class SQLSchemaMigrator implements Closeable {
      * @param columnName name of the column
      * @return var patterns representing the resource type
      */
-    private Collection<Var> migrateAsResource(String ownerType, Data columnType, String columnName){
+    private Collection<Var> migrateAsResource(String ownerType, ResourceType.DataType columnType, String columnName){
         String resourceName = namer.resourceName(ownerType, columnName);
 
         // create the vars

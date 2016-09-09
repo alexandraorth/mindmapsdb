@@ -94,6 +94,14 @@ public class GraqlShellIT {
     }
 
     @Test
+    public void testFileOption() throws IOException {
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        String result = testShell("", err, "-f", "src/test/graql/shell-test.gql");
+        assertEquals(err.toString(), "");
+        assertThat(result, allOf(containsString("person"), containsString("bob")));
+    }
+
+    @Test
     public void testMatchQuery() throws IOException {
         String[] result = testShell("match $x isa type\nexit").split("\r\n?|\n");
 
@@ -242,20 +250,20 @@ public class GraqlShellIT {
         PrintStream out = new PrintStream(bout);
         PrintStream err = new PrintStream(berr);
 
-        System.setIn(in);
-        System.setOut(out);
-        System.setErr(err);
-
         try {
+            System.setIn(in);
+            System.setOut(out);
+            System.setErr(err);
+            
             GraqlShell.runShell(newArgs, expectedVersion, new GraqlClientImpl());
         } catch (Exception e) {
             System.setErr(trueErr);
             e.printStackTrace();
             err.flush();
             fail(berr.toString());
+        } finally {
+            resetIO();
         }
-
-        resetIO();
 
         out.flush();
         err.flush();
