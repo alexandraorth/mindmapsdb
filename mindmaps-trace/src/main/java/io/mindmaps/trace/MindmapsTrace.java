@@ -9,11 +9,16 @@ import io.mindmaps.graql.Graql;
 import io.mindmaps.graql.QueryBuilder;
 import io.mindmaps.graql.Var;
 import io.mindmaps.util.Schema;
+import javafx.util.Pair;
+import org.apache.avro.ipc.trace.Trace;
 
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
+import static io.mindmaps.graql.Graql.eq;
 import static io.mindmaps.graql.Graql.insert;
 import static io.mindmaps.graql.Graql.var;
+import static java.util.stream.Collectors.toSet;
 
 
 public class MindmapsTrace {
@@ -41,34 +46,47 @@ public class MindmapsTrace {
         return mindmapsTrace;
     }
 
-    public void log(Map<String, Concept> concepts){
+    public void log(Collection<Pair<String, Concept>> concepts){
         log(null, concepts);
     }
 
-    public void log(String messageContents, Map<String, Concept> concepts){
+    public void log(String messageContents, Collection<Pair<String, Concept>> concepts){
+        Collection<Var> vars = new HashSet<>();
 
-        Var message = createMessage(messageContents);
-        graql.insert(message).execute();
+        vars.add(createMessage(messageContents));
 
-        for(String name:concepts.keySet()){
-            Concept concept = concepts.get(name);
-
-            Var node = createNode(name, concept);
-            Var rel = createRelation(message, node);
-            graql.insert(node, rel).execute();
+        for(Pair<String, Concept> concept:concepts){
+            Var node = createNode(concept.getKey(), concept.getValue());
+            vars.add(createRelationToMessage(node));
+            vars.add(node);
         }
 
         try {
+            graql.insert(vars).execute();
             traceGraph.commit();
-
-            System.out.println(traceGraph.getEntityType(TraceOntology.Type.MESSAGE.getName()).instances());
         } catch (MindmapsValidationException e) {
             e.printStackTrace();
         }
     }
 
-    public Var createMessage(String messageContents){
-        Var message = var().isa(TraceOntology.Type.MESSAGE.getName());
+    public Collection<TraceMessage> retrieve(Concept... concepts){
+        Collection<Var> patterns = new HashSet<>();
+        patterns.add(var("message").isa(TraceOntology.Type.MESSAGE.getName()));
+
+        for(Concept retrieve:concepts){
+            patterns.add(
+                    var()
+                            .rel(TraceOntology.Type.MESSAGE_ROLE.getName(), var("message"))
+                            .rel(TraceOntology.Type.NODE_ROLE.getName(),
+                                    var().has(TraceOntology.Type.NODE_ID.getName(), eq(retrieve.getId())))
+            );
+        }
+
+        return graql.match(patterns).stream().map(m -> new TraceMessage(m.get("message"))).collect(toSet());
+    }
+
+    private Var createMessage(String messageContents){
+        Var message = var("message").isa(TraceOntology.Type.MESSAGE.getName());
         message.has(TraceOntology.Type.MESSAGE_TIMESTAMP.getName(), System.currentTimeMillis());
 
         if (messageContents != null){
@@ -78,19 +96,19 @@ public class MindmapsTrace {
         return message;
     }
 
-    public Var createNode(String name, Concept concept){
+    private Var createNode(String name, Concept concept){
         Var node = var().isa(TraceOntology.Type.NODE.getName());
-        node.has(TraceOntology.Type.NODE_ID.getName(), name);
+        node.has(TraceOntology.Type.NODE_NAME.getName(), name);
         node.has(TraceOntology.Type.NODE_ID.getName(), concept.getId());
         node.has(TraceOntology.Type.NODE_TYPE.getName(), concept.type().getId());
 
         return node;
     }
 
-    public Var createRelation(Var message, Var node){
+    private Var createRelationToMessage(Var node){
         return var().isa(TraceOntology.Type.MESSAGE_NODE_REL.getName())
                 .rel(TraceOntology.Type.NODE_ROLE.getName(), node)
-                .rel(TraceOntology.Type.MESSAGE_ROLE.getName(), message);
+                .rel(TraceOntology.Type.MESSAGE_ROLE.getName(), var("message"));
     }
 
     /**

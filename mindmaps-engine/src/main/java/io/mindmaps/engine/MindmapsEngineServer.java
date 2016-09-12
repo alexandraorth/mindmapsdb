@@ -38,7 +38,7 @@ public class MindmapsEngineServer {
         port(prop.getPropertyAsInt(ConfigProperties.SERVER_PORT_NUMBER));
 
         // Set the static files folder
-//        staticFiles.externalLocation(prop.getPath(ConfigProperties.STATIC_FILES_PATH));
+        staticFiles.externalLocation(prop.getPath(ConfigProperties.STATIC_FILES_PATH));
 
         // ----- APIs --------- //
 
