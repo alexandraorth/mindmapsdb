@@ -21,13 +21,13 @@ package io.mindmaps.graql;
 
 import com.google.common.collect.ImmutableSet;
 import io.mindmaps.MindmapsGraph;
+import io.mindmaps.graql.internal.query.aggregate.*;
 import io.mindmaps.graql.internal.util.AdminConverter;
 import io.mindmaps.concept.Concept;
 import io.mindmaps.graql.admin.PatternAdmin;
 import io.mindmaps.graql.admin.Conjunction;
 import io.mindmaps.graql.admin.Disjunction;
 import io.mindmaps.graql.internal.query.Patterns;
-import io.mindmaps.graql.internal.query.aggregate.Aggregates;
 import io.mindmaps.graql.internal.query.predicate.*;
 
 import java.util.*;

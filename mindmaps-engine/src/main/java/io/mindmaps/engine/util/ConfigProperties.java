@@ -124,7 +124,7 @@ public class ConfigProperties {
         if (System.getProperty(LOG_FILE_CONFIG_SYSTEM_PROPERTY) == null)
             System.setProperty(LOG_FILE_CONFIG_SYSTEM_PROPERTY, getProjectPath() + DEFAULT_LOG_CONFIG_FILE);
 
-        System.setProperty(LOG_FILE_OUTPUT_SYSTEM_PROPERTY,getPath(LOGGING_FILE_PATH));
+        System.setProperty(LOG_FILE_OUTPUT_SYSTEM_PROPERTY, getPath(LOGGING_FILE_PATH));
     }
 
     private ConfigProperties() {
@@ -136,7 +136,8 @@ public class ConfigProperties {
         }
         setLogConfigFile();
         LOG = LoggerFactory.getLogger(ConfigProperties.class);
-        LOG.info("Configuration file in use: [" + configFilePath + "]");
+        LOG.info(getProjectPath());
+        LOG.info("onfiguration file in use: [" + configFilePath + "]");
 
     }
 

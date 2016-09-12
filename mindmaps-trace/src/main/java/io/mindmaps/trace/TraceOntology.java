@@ -1,10 +1,10 @@
 package io.mindmaps.trace;
 
 import io.mindmaps.MindmapsGraph;
-import io.mindmaps.core.Data;
-import io.mindmaps.core.implementation.exception.MindmapsValidationException;
-import io.mindmaps.core.model.RoleType;
-import io.mindmaps.graql.internal.GraqlType;
+import io.mindmaps.concept.ResourceType;
+import io.mindmaps.concept.RoleType;
+import io.mindmaps.exception.MindmapsValidationException;
+import io.mindmaps.graql.internal.util.GraqlType;
 
 public class TraceOntology {
 
@@ -37,7 +37,7 @@ public class TraceOntology {
      * @param resourceName name of resource to attach to the node type
      */
     public static void registerNodeResource(MindmapsGraph traceGraph, String resourceName, String datatype){
-        insertResourceRelation(traceGraph, Type.NODE.getName(), resourceName, Data.SUPPORTED_TYPES.get(datatype));
+        insertResourceRelation(traceGraph, Type.NODE.getName(), resourceName, ResourceType.DataType.SUPPORTED_TYPES.get(datatype));
         try {
             traceGraph.commit();
         } catch (MindmapsValidationException e) {
@@ -49,18 +49,18 @@ public class TraceOntology {
      * Insert the default trace ontology, as described in the README
      * to the graph.
      */
-    public static void initializeTraceOntology(MindmapsGraph traceGraph){
+    public static void initialize(MindmapsGraph traceGraph){
 
         // message, it's resources and relations to those resources
         traceGraph.putEntityType(TraceOntology.Type.MESSAGE.getName());
-        insertResourceRelation(traceGraph, Type.MESSAGE.getName(), Type.MESSAGE_CONTENTS.getName(), Data.STRING);
-        insertResourceRelation(traceGraph, Type.MESSAGE.getName(), Type.MESSAGE_TIMESTAMP.getName(), Data.LONG);
+        insertResourceRelation(traceGraph, Type.MESSAGE.getName(), Type.MESSAGE_CONTENTS.getName(), ResourceType.DataType.STRING);
+        insertResourceRelation(traceGraph, Type.MESSAGE.getName(), Type.MESSAGE_TIMESTAMP.getName(), ResourceType.DataType.LONG);
 
         // entity, it's default resources and relations to those resources
         traceGraph.putEntityType(TraceOntology.Type.NODE.getName());
-        insertResourceRelation(traceGraph, Type.NODE.getName(), Type.NODE_TYPE.getName(), Data.STRING);
-        insertResourceRelation(traceGraph, Type.NODE.getName(), Type.NODE_ID.getName(), Data.STRING);
-        insertResourceRelation(traceGraph, Type.NODE.getName(), Type.NODE_NAME.getName(), Data.STRING);
+        insertResourceRelation(traceGraph, Type.NODE.getName(), Type.NODE_TYPE.getName(), ResourceType.DataType.STRING);
+        insertResourceRelation(traceGraph, Type.NODE.getName(), Type.NODE_ID.getName(), ResourceType.DataType.STRING);
+        insertResourceRelation(traceGraph, Type.NODE.getName(), Type.NODE_NAME.getName(), ResourceType.DataType.STRING);
 
         RoleType nodeRole = traceGraph.putRoleType(Type.NODE_ROLE.getName());
         RoleType messageRole = traceGraph.putRoleType(Type.MESSAGE_ROLE.getName());
@@ -78,7 +78,7 @@ public class TraceOntology {
      * @param entityType
      * @param resourceType
      */
-    public static void insertResourceRelation(MindmapsGraph traceGraph, String entityType, String resourceType, Data dataType){
+    public static void insertResourceRelation(MindmapsGraph traceGraph, String entityType, String resourceType, ResourceType.DataType dataType){
         traceGraph.putResourceType(resourceType, dataType);
 
         RoleType owner = traceGraph.putRoleType(GraqlType.HAS_RESOURCE_OWNER.getId(resourceType));

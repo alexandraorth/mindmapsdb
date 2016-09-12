@@ -1,6 +1,6 @@
 package io.mindmaps.graql.internal.query.aggregate;
 
-import io.mindmaps.core.model.Concept;
+import io.mindmaps.concept.Concept;
 import io.mindmaps.graql.internal.query.aggregate.AbstractAggregate;
 
 import java.util.Map;

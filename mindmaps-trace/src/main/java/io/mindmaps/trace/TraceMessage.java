@@ -1,6 +1,7 @@
 package io.mindmaps.trace;
 
-import io.mindmaps.core.model.Concept;
+
+import io.mindmaps.concept.Concept;
 
 import java.util.Map;
 

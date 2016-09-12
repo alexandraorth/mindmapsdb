@@ -21,6 +21,7 @@ package io.mindmaps.engine;
 import io.mindmaps.engine.controller.*;
 import io.mindmaps.engine.util.ConfigProperties;
 
+import static spark.Spark.awaitInitialization;
 import static spark.Spark.port;
 import static spark.Spark.staticFiles;
 
@@ -37,7 +38,7 @@ public class MindmapsEngineServer {
         port(prop.getPropertyAsInt(ConfigProperties.SERVER_PORT_NUMBER));
 
         // Set the static files folder
-        staticFiles.externalLocation(prop.getPath(ConfigProperties.STATIC_FILES_PATH));
+//        staticFiles.externalLocation(prop.getPath(ConfigProperties.STATIC_FILES_PATH));
 
         // ----- APIs --------- //
 
@@ -49,5 +50,8 @@ public class MindmapsEngineServer {
         new TransactionController();
         new StatusController();
 
+        awaitInitialization(); // Wait for server to be initialized
+
+        System.out.println("ciao");
     }
 }
