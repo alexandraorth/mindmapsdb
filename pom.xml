@@ -46,7 +46,6 @@
         <module>mindmaps-dist</module>
         <module>mindmaps-test</module>
         <module>mindmaps-core</module>
-        <module>mindmaps-migration</module>
         <module>mindmaps-trace</module>
     </modules>
 
