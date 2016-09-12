@@ -2,13 +2,17 @@ package io.mindmaps.trace;
 
 import io.mindmaps.MindmapsGraph;
 import io.mindmaps.concept.Concept;
+import io.mindmaps.concept.EntityType;
+import io.mindmaps.exception.MindmapsValidationException;
 import io.mindmaps.factory.MindmapsClient;
 import io.mindmaps.graql.Graql;
+import io.mindmaps.graql.QueryBuilder;
 import io.mindmaps.graql.Var;
 import io.mindmaps.util.Schema;
 
 import java.util.Map;
 
+import static io.mindmaps.graql.Graql.insert;
 import static io.mindmaps.graql.Graql.var;
 
 
@@ -18,9 +22,11 @@ public class MindmapsTrace {
 
     private static MindmapsTrace mindmapsTrace;
     private MindmapsGraph traceGraph;
+    private QueryBuilder graql;
 
     private MindmapsTrace(){
         traceGraph = MindmapsClient.getGraph(TRACE_GRAPH);
+        graql = Graql.withGraph(traceGraph);
 
         boolean ontologyExists = traceGraph.getMetaType().instances().size() > Schema.MetaType.values().length;
         if(!ontologyExists){
@@ -42,15 +48,22 @@ public class MindmapsTrace {
     public void log(String messageContents, Map<String, Concept> concepts){
 
         Var message = createMessage(messageContents);
-        Graql.insert(message);
+        graql.insert(message).execute();
 
         for(String name:concepts.keySet()){
             Concept concept = concepts.get(name);
 
             Var node = createNode(name, concept);
             Var rel = createRelation(message, node);
+            graql.insert(node, rel).execute();
+        }
 
-            Graql.insert(node, rel);
+        try {
+            traceGraph.commit();
+
+            System.out.println(traceGraph.getEntityType(TraceOntology.Type.MESSAGE.getName()).instances());
+        } catch (MindmapsValidationException e) {
+            e.printStackTrace();
         }
     }
 

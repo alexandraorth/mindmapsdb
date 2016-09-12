@@ -1,6 +1,7 @@
 package io.mindmaps.trace;
 
 import io.mindmaps.MindmapsGraph;
+import io.mindmaps.concept.EntityType;
 import io.mindmaps.concept.ResourceType;
 import io.mindmaps.concept.RoleType;
 import io.mindmaps.exception.MindmapsValidationException;
@@ -52,19 +53,21 @@ public class TraceOntology {
     public static void initialize(MindmapsGraph traceGraph){
 
         // message, it's resources and relations to those resources
-        traceGraph.putEntityType(TraceOntology.Type.MESSAGE.getName());
+        EntityType message = traceGraph.putEntityType(TraceOntology.Type.MESSAGE.getName());
         insertResourceRelation(traceGraph, Type.MESSAGE.getName(), Type.MESSAGE_CONTENTS.getName(), ResourceType.DataType.STRING);
         insertResourceRelation(traceGraph, Type.MESSAGE.getName(), Type.MESSAGE_TIMESTAMP.getName(), ResourceType.DataType.LONG);
 
         // entity, it's default resources and relations to those resources
-        traceGraph.putEntityType(TraceOntology.Type.NODE.getName());
+        EntityType node = traceGraph.putEntityType(TraceOntology.Type.NODE.getName());
         insertResourceRelation(traceGraph, Type.NODE.getName(), Type.NODE_TYPE.getName(), ResourceType.DataType.STRING);
         insertResourceRelation(traceGraph, Type.NODE.getName(), Type.NODE_ID.getName(), ResourceType.DataType.STRING);
         insertResourceRelation(traceGraph, Type.NODE.getName(), Type.NODE_NAME.getName(), ResourceType.DataType.STRING);
 
         RoleType nodeRole = traceGraph.putRoleType(Type.NODE_ROLE.getName());
         RoleType messageRole = traceGraph.putRoleType(Type.MESSAGE_ROLE.getName());
-        traceGraph.putRelationType(Type.MESSAGE_NODE_REL.getName()).playsRole(nodeRole).playsRole(messageRole);
+        traceGraph.putRelationType(Type.MESSAGE_NODE_REL.getName()).hasRole(nodeRole).hasRole(messageRole);
+        message.playsRole(messageRole);
+        node.playsRole(nodeRole);
 
         try {
             traceGraph.commit();
