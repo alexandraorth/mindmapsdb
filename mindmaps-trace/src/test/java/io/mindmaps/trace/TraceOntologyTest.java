@@ -14,6 +14,7 @@ import javafx.util.Pair;
 import org.apache.avro.ipc.trace.Trace;
 import org.junit.After;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.*;
@@ -131,6 +132,7 @@ public class TraceOntologyTest {
         assertEquals(message.resources().size(), 1);
     }
 
+    @Ignore
     @Test
     public void testRetrieveOneMessage(){
         Instance bulbasaur = pokemonGraph.getEntity("Bulbasaur");
@@ -143,6 +145,7 @@ public class TraceOntologyTest {
         System.out.println(message);
     }
 
+    @Ignore
     @Test
     public void testETLStyleTrace(){
         // test insert and retrieval
