@@ -51,7 +51,5 @@ public class MindmapsEngineServer {
         new StatusController();
 
         awaitInitialization(); // Wait for server to be initialized
-
-        System.out.println("ciao");
     }
 }
