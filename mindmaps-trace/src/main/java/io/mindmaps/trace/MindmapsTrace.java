@@ -96,17 +96,17 @@ public class MindmapsTrace {
 
 
 
-        return graql.match(patterns).stream().map(result -> {
+        return graql.match(patterns).stream().map(this::createTraceMessage).collect(toSet());
+    }
 
-            System.out.println("~~~~~~~~ " + result);
-            String message = (String) result.get("message-contents").asResource().getValue();
+    private TraceMessage createTraceMessage(Map<String, Concept> result){
+        String message = (String) result.get("message-contents").asResource().getValue();
 
-            Map<String, Concept> nodes = result.entrySet().stream()
-                    .filter(r -> !r.getKey().equals("message") && !r.getKey().equals("message-contents"))
-                    .collect(Collectors.toMap(Map.Entry::getKey,Map.Entry::getValue));
+        Map<String, Concept> nodes = result.entrySet().stream()
+                .filter(r -> !r.getKey().equals("message") && !r.getKey().equals("message-contents"))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            return new TraceMessage(message, nodes);
-        }).collect(toSet());
+        return new TraceMessage(message, nodes);
     }
 
     private Var createMessage(String messageContents){
