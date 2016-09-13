@@ -76,13 +76,7 @@ public class ConfigProperties {
         return instance;
     }
 
-    public int getAvailableThreads() {
-        if (numOfThreads == -1)
-            computeThreadsNumber();
-
-        return numOfThreads;
-    }
-
+    // Setters
     private void computeThreadsNumber() {
 
         numOfThreads = Integer.parseInt(prop.getProperty(NUM_THREADS_PROPERTY));
@@ -92,8 +86,16 @@ public class ConfigProperties {
 
         if (numOfThreads > MAX_NUMBER_OF_THREADS)
             numOfThreads = MAX_NUMBER_OF_THREADS;
+    }
 
-        LOG.info("Number of threads set to [" + numOfThreads + "]");
+
+    // Getters
+
+    public int getAvailableThreads() {
+        if (numOfThreads == -1)
+            computeThreadsNumber();
+
+        return numOfThreads;
     }
 
     public String getPath(String path) {

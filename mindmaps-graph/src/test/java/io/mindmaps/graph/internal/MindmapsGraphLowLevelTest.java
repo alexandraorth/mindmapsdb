@@ -18,8 +18,6 @@
 
 package io.mindmaps.graph.internal;
 
-import io.mindmaps.util.Schema;
-import io.mindmaps.exception.MindmapsValidationException;
 import io.mindmaps.concept.Concept;
 import io.mindmaps.concept.Entity;
 import io.mindmaps.concept.EntityType;
@@ -31,7 +29,9 @@ import io.mindmaps.concept.ResourceType;
 import io.mindmaps.concept.RoleType;
 import io.mindmaps.concept.RuleType;
 import io.mindmaps.concept.Type;
+import io.mindmaps.exception.MindmapsValidationException;
 import io.mindmaps.factory.MindmapsTestGraphFactory;
+import io.mindmaps.util.Schema;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.verification.VerificationException;
 import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.apache.tinkerpop.gremlin.structure.Graph;
@@ -42,12 +42,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.util.Collection;
 import java.util.UUID;
 
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -89,9 +91,9 @@ public class MindmapsGraphLowLevelTest {
     public void testTooManyNodesForId() {
         Graph graph = mindmapsGraph.getTinkerPopGraph();
         Vertex v1 = graph.addVertex();
-        v1.property(Schema.ConceptPropertyUnique.ITEM_IDENTIFIER.name(), "value");
+        v1.property(Schema.ConceptProperty.ITEM_IDENTIFIER.name(), "value");
         Vertex v2 = graph.addVertex();
-        v2.property(Schema.ConceptPropertyUnique.ITEM_IDENTIFIER.name(), "value");
+        v2.property(Schema.ConceptProperty.ITEM_IDENTIFIER.name(), "value");
         mindmapsGraph.putEntityType("value");
     }
 
@@ -161,8 +163,8 @@ public class MindmapsGraphLowLevelTest {
     public void makeArtificialCasting(RoleTypeImpl role, InstanceImpl rolePlayer, RelationImpl relation) {
         String id = "FakeCasting " + UUID.randomUUID();
         Vertex vertex = mindmapsGraph.getTinkerPopGraph().addVertex(Schema.BaseType.CASTING.name());
-        vertex.property(Schema.ConceptPropertyUnique.ITEM_IDENTIFIER.name(), id);
-        vertex.property(Schema.ConceptPropertyUnique.INDEX.name(), CastingImpl.generateNewHash(role, rolePlayer));
+        vertex.property(Schema.ConceptProperty.ITEM_IDENTIFIER.name(), id);
+        vertex.property(Schema.ConceptProperty.INDEX.name(), CastingImpl.generateNewHash(role, rolePlayer));
 
         CastingImpl casting = (CastingImpl) mindmapsGraph.getConcept(id);
         EdgeImpl edge = casting.addEdge(role, Schema.EdgeLabel.ISA); // Casting to Role
@@ -361,7 +363,6 @@ public class MindmapsGraphLowLevelTest {
         RoleType testRoleType = mindmapsGraph.putRoleType("Test Role Type");
         RelationType testRelationType = mindmapsGraph.putRelationType("Test Relation Type");
 
-        assertEquals(Schema.MetaType.TYPE.getId(), testType.type().type().getId());
         assertEquals(Schema.MetaType.ENTITY_TYPE.getId(), testType.type().getId());
         assertEquals(Schema.MetaType.RESOURCE_TYPE.getId(), testResourceType.type().getId());
         assertEquals(Schema.MetaType.ROLE_TYPE.getId(), testRoleType.type().getId());
@@ -418,5 +419,34 @@ public class MindmapsGraphLowLevelTest {
         mindmapsGraph.commit();
 
         assertNull(mindmapsGraph.getConcept("1"));
+    }
+
+
+    @Test
+    public void testGetInstancesFromMeta(){
+        Type metaType = mindmapsGraph.getMetaType();
+        Type metaEntityType = mindmapsGraph.getMetaEntityType();
+        Type metaRelationType = mindmapsGraph.getMetaRelationType();
+        Type metaResourceType = mindmapsGraph.getMetaResourceType();
+        Type metaRoleType = mindmapsGraph.getMetaRoleType();
+        Type metaRuleType = mindmapsGraph.getMetaRuleType();
+        Type metaRuleConstraint = mindmapsGraph.getMetaRuleConstraint();
+        Type metaRuleInference = mindmapsGraph.getMetaRuleInference();
+
+        EntityType sampleEntityType = mindmapsGraph.putEntityType("Sample Entity Type");
+        RelationType sampleRelationType = mindmapsGraph.putRelationType("Sample Relation Type");
+        RoleType sampleRoleType = mindmapsGraph.putRoleType("Sample Role Type");
+
+        Collection<? extends Concept> instances = metaType.instances();
+
+        assertFalse(instances.contains(metaEntityType));
+        assertFalse(instances.contains(metaRelationType));
+        assertFalse(instances.contains(metaResourceType));
+        assertFalse(instances.contains(metaRoleType));
+        assertFalse(instances.contains(metaRuleType));
+
+        assertTrue(instances.contains(sampleEntityType));
+        assertTrue(instances.contains(sampleRelationType));
+        assertTrue(instances.contains(sampleRoleType));
     }
 }

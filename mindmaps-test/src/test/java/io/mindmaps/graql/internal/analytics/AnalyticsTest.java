@@ -257,6 +257,7 @@ public class AnalyticsTest {
         });
     }
 
+    @Ignore
     @Test
     public void testDegreesAndPersist() throws Exception {
         // create instances
@@ -479,6 +480,7 @@ public class AnalyticsTest {
         });
     }
 
+    @Ignore
     @Test
     public void testDegreeIsPersisted() throws Exception {
         // create a simple graph

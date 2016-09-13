@@ -18,6 +18,7 @@
 
 package io.mindmaps.graql.internal.parser;
 
+import io.mindmaps.concept.Type;
 import io.mindmaps.graql.internal.util.StringConverter;
 import io.mindmaps.concept.Concept;
 import io.mindmaps.concept.Resource;
@@ -50,7 +51,7 @@ public interface Getter {
     static Getter value() {
         return result -> {
             if (result.isResource()) {
-                return " " + colorKeyword("value") + StringConverter.valueToString(result.asResource().getValue());
+                return colorKeyword(" value ") + StringConverter.valueToString(result.asResource().getValue());
             } else {
                 return "";
             }
@@ -61,7 +62,14 @@ public interface Getter {
      * @return a getter that will get the id of the type of a concept
      */
     static Getter isa() {
-        return result -> colorKeyword(" isa ") + colorType(result.type().getId());
+        return result -> {
+            Type type = result.type();
+            if (type != null) {
+                return colorKeyword(" isa ") + colorType(type.getId());
+            } else {
+                return "";
+            }
+        };
     }
 
     /**
@@ -69,13 +77,13 @@ public interface Getter {
      * @return a getter that will get all resources' values of a given type of a concept
      */
     static Getter has(String resourceType) {
-        String hasType = colorKeyword("has ") + colorType(resourceType);
+        String hasType = colorKeyword(" has ") + colorType(resourceType) + " ";
 
         return result -> {
             StringBuilder str = new StringBuilder();
             resources(result).stream()
                     .filter(r -> r.type().getId().equals(resourceType))
-                    .forEach(r -> str.append(" ").append(hasType).append(" \"").append(r.getValue()).append("\""));
+                    .forEach(r -> str.append(hasType).append(StringConverter.valueToString(r.getValue())));
             return str.toString();
         };
     }

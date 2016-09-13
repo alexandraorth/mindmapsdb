@@ -117,7 +117,7 @@ abstract class ConceptImpl<T extends Concept, V extends Type> implements Concept
      * @param id The new value of the unique property
      * @return The concept itself casted to the correct interface itself
      */
-    T setUniqueProperty(Schema.ConceptPropertyUnique key, String id){
+    T setUniqueProperty(Schema.ConceptProperty key, String id){
         if(mindmapsGraph.isBatchLoadingEnabled() || updateAllowed(key, id))
             return setProperty(key, id);
         else
@@ -130,7 +130,7 @@ abstract class ConceptImpl<T extends Concept, V extends Type> implements Concept
      * @param value The value to check
      * @return True if the concept can be updated. I.e. the value is unique for the property.
      */
-    private boolean updateAllowed(Schema.ConceptPropertyUnique key, String value) {
+    private boolean updateAllowed(Schema.ConceptProperty key, String value) {
         ConceptImpl fetchedConcept = mindmapsGraph.getConcept(key, value);
         return fetchedConcept == null || this.equals(fetchedConcept);
     }
@@ -165,7 +165,7 @@ abstract class ConceptImpl<T extends Concept, V extends Type> implements Concept
         Type type = null;
         boolean notFound = true;
 
-        while(notFound){
+        while(notFound && currentConcept != null){
             ConceptImpl concept = currentConcept.getParentIsa();
             if(concept != null){
                 //Checks the following case c1 -ako-> c2 -ako-> c3 -isa-> c1 is invalid
@@ -536,35 +536,12 @@ abstract class ConceptImpl<T extends Concept, V extends Type> implements Concept
 
     /**
      *
-     * @param key The key of the unique property to mutate
-     * @param value The value to commit into the property
-     * @return The concept itself casted to the correct interface
-     */
-    public T setProperty(Schema.ConceptPropertyUnique key, Object value) {
-        return setProperty(key.name(), value);
-    }
-
-    /**
-     *
      * @param key The key of the non-unique property to mutate
      * @param value The value to commit into the property
      * @return The concept itself casted to the correct interface
      */
     T setProperty(Schema.ConceptProperty key, Object value){
         return setProperty(key.name(), value);
-    }
-
-    /**
-     *
-     * @param key The key of the unique property to retrieve
-     * @return The value stored in the property
-     */
-    public String getProperty(Schema.ConceptPropertyUnique key){
-        Object property = getProperty(key.name());
-        if(property == null)
-            return null;
-        else
-            return property.toString();
     }
 
     /**
@@ -599,8 +576,8 @@ abstract class ConceptImpl<T extends Concept, V extends Type> implements Concept
      *
      * @return The unique base identifier of this concept.
      */
-    public long getBaseIdentifier() {
-        return (long) vertex.id();
+    public Object getBaseIdentifier() {
+        return vertex.id();
     }
 
     /**
@@ -617,7 +594,7 @@ abstract class ConceptImpl<T extends Concept, V extends Type> implements Concept
      */
     @Override
     public String getId(){
-        return getProperty(Schema.ConceptPropertyUnique.ITEM_IDENTIFIER);
+        return (String) getProperty(Schema.ConceptProperty.ITEM_IDENTIFIER);
     }
 
     /**

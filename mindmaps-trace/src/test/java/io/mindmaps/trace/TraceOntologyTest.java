@@ -32,7 +32,7 @@ public class TraceOntologyTest {
     private static MindmapsGraph pokemonGraph = MindmapsTestGraphFactory.newEmptyGraph();
 
     @BeforeClass
-    public static void setup(){
+    public static void setup() throws InterruptedException {
         System.setProperty(ConfigProperties.CONFIG_FILE_SYSTEM_PROPERTY, ConfigProperties.TEST_CONFIG_FILE);
         MindmapsEngineServer.start();
 
@@ -132,13 +132,30 @@ public class TraceOntologyTest {
         assertEquals(message.resources().size(), 1);
     }
 
-    @Ignore
     @Test
     public void testRetrieveOneMessage(){
         Instance bulbasaur = pokemonGraph.getEntity("Bulbasaur");
         mindmapsTrace.log("test message", Collections.singleton(new Pair<>("bulb", bulbasaur)));
 
         Collection<TraceMessage> messages = mindmapsTrace.retrieve(bulbasaur);
+        assertEquals(messages.size(), 1);
+
+        TraceMessage message = messages.iterator().next();
+        System.out.println(message);
+    }
+
+    @Test
+    public void testRetrieveOneMessageMultipleNodes(){
+        Instance bulbasaur = pokemonGraph.getEntity("Bulbasaur");
+        Instance venusaur = pokemonGraph.getEntity("Venusaur");
+
+        Collection<Pair<String, Concept>> toLog = Arrays.asList(
+                new Pair<>("bulb", bulbasaur),
+                new Pair<>("venu", venusaur));
+
+        mindmapsTrace.log("test message", toLog);
+
+        Collection<TraceMessage> messages = mindmapsTrace.retrieve(bulbasaur, venusaur);
         assertEquals(messages.size(), 1);
 
         TraceMessage message = messages.iterator().next();

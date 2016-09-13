@@ -12,9 +12,14 @@ public class TraceMessage {
 
     private Map<String, Concept> nodeMap;
 
-    public TraceMessage(Concept message){
+    public TraceMessage(Map<String, Concept> nodeMap){
+        this(null, nodeMap);
+    }
 
-
+    public TraceMessage(String message, Map<String, Concept> nodeMap){
+        this.message = message;
+        this.nodeMap = nodeMap;
+        this.timestamp = System.currentTimeMillis();
     }
 
     public long getTimestamp() {

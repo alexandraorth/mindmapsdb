@@ -39,11 +39,23 @@ public class MindmapsTrace {
         }
     }
 
+    /**
+     * Get the singleton instance of the Mindmaps trace object
+     * @return the singleton Mindmaps trace object
+     */
     public static MindmapsTrace instance(){
         if(mindmapsTrace == null){
             mindmapsTrace = new MindmapsTrace();
         }
         return mindmapsTrace;
+    }
+
+    /**
+     * Attach a resource type of the given name to the node type
+     * @param resourceName name of resource to attach to the node type
+     */
+    public void registerNodeResource(String resourceName, String datatype){
+        TraceOntology.registerNodeResource(traceGraph, resourceName, datatype);
     }
 
     public void log(Collection<Pair<String, Concept>> concepts){
@@ -72,17 +84,29 @@ public class MindmapsTrace {
     public Collection<TraceMessage> retrieve(Concept... concepts){
         Collection<Var> patterns = new HashSet<>();
         patterns.add(var("message").isa(TraceOntology.Type.MESSAGE.getName()));
-
+        patterns.add(var("message").has(TraceOntology.Type.MESSAGE_CONTENTS.getName(), var("message-contents")));
         for(Concept retrieve:concepts){
             patterns.add(
                     var()
                             .rel(TraceOntology.Type.MESSAGE_ROLE.getName(), var("message"))
                             .rel(TraceOntology.Type.NODE_ROLE.getName(),
-                                    var().has(TraceOntology.Type.NODE_ID.getName(), eq(retrieve.getId())))
+                                    var(retrieve.getId()).has(TraceOntology.Type.NODE_ID.getName(), eq(retrieve.getId())))
             );
         }
 
-        return graql.match(patterns).stream().map(m -> new TraceMessage(m.get("message"))).collect(toSet());
+
+
+        return graql.match(patterns).stream().map(result -> {
+
+            System.out.println("~~~~~~~~ " + result);
+            String message = (String) result.get("message-contents").asResource().getValue();
+
+            Map<String, Concept> nodes = result.entrySet().stream()
+                    .filter(r -> !r.getKey().equals("message") && !r.getKey().equals("message-contents"))
+                    .collect(Collectors.toMap(Map.Entry::getKey,Map.Entry::getValue));
+
+            return new TraceMessage(message, nodes);
+        }).collect(toSet());
     }
 
     private Var createMessage(String messageContents){
@@ -109,13 +133,5 @@ public class MindmapsTrace {
         return var().isa(TraceOntology.Type.MESSAGE_NODE_REL.getName())
                 .rel(TraceOntology.Type.NODE_ROLE.getName(), node)
                 .rel(TraceOntology.Type.MESSAGE_ROLE.getName(), var("message"));
-    }
-
-    /**
-     * Attach a resource type of the given name to the node type
-     * @param resourceName name of resource to attach to the node type
-     */
-    private void registerNodeResource(String resourceName, String datatype){
-        TraceOntology.registerNodeResource(traceGraph, resourceName, datatype);
     }
 }
