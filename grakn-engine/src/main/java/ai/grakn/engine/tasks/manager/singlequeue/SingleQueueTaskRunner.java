@@ -340,17 +340,6 @@ public class SingleQueueTaskRunner implements Runnable, AutoCloseable {
     }
 
     /**
-     * Log debug information about the given set of {@param records} polled from Kafka
-     * @param records Polled-for records to return information about
-     */
-    private void debugConsumerStatus(Consumer<TaskId, TaskState> theConsumer, ConsumerRecords<TaskId, TaskState> records ){
-        for (TopicPartition partition : theConsumer.assignment()) {
-            LOG.trace("Partition {}{} has offset {} after receiving {} records",
-                    partition.topic(), partition.partition(), theConsumer.position(partition), records.records(partition).size());
-        }
-    }
-
-    /**
      * Persists a Background Task's checkpoint to ZK and graph.
      * @param taskState task to update in storage
      * @return A Consumer<String> function that can be called by the background task on demand to save its checkpoint.
