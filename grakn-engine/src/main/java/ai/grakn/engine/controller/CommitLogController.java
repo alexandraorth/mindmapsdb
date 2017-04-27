@@ -39,7 +39,6 @@ import spark.Service;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
-import java.time.Duration;
 import java.util.Optional;
 
 import static ai.grakn.engine.GraknEngineConfig.DEFAULT_KEYSPACE_PROPERTY;
@@ -91,14 +90,14 @@ public class CommitLogController {
         LOG.info("Commit log received for graph [" + keyspace + "]");
 
         // Instances to post process
-        Json postProcessingConfiguration = Json.object();
-        postProcessingConfiguration.set(KEYSPACE, keyspace);
-        postProcessingConfiguration.set(COMMIT_LOG_FIXING, Json.read(req.body()).at(COMMIT_LOG_FIXING));
-
-        // TODO Make interval configurable
-        TaskState postProcessingTask = TaskState.of(
-                PostProcessingTask.class, this.getClass().getName(),
-                TaskSchedule.recurring(Duration.ofMinutes(5)));
+//        Json postProcessingConfiguration = Json.object();
+//        postProcessingConfiguration.set(KEYSPACE, keyspace);
+//        postProcessingConfiguration.set(COMMIT_LOG_FIXING, Json.read(req.body()).at(COMMIT_LOG_FIXING));
+//
+//        // TODO Make interval configurable
+//        TaskState postProcessingTask = TaskState.of(
+//                PostProcessingTask.class, this.getClass().getName(),
+//                TaskSchedule.recurring(Duration.ofMinutes(5)));
 
         //Instances to count
         Json countingConfiguration = Json.object();
@@ -113,9 +112,9 @@ public class CommitLogController {
         PostProcessingTask.lastPPTaskCreated.set(System.currentTimeMillis());
 
         // Send two tasks to the pipeline
-        manager.addLowPriorityTask(postProcessingTask, TaskConfiguration.of(postProcessingConfiguration));
+//        manager.addLowPriorityTask(postProcessingTask, TaskConfiguration.of(postProcessingConfiguration));
         manager.addHighPriorityTask(countingTask, TaskConfiguration.of(countingConfiguration));
 
-        return "PP Task [ " + postProcessingTask.getId().getValue() + " ] and Counting task [" + countingTask.getId().getValue() + "] created for graph [" + keyspace + "]";
+        return "Counting task [" + countingTask.getId().getValue() + "] created for graph [" + keyspace + "]";
     }
 }
