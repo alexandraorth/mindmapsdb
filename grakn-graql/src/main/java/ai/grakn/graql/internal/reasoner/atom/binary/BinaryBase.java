@@ -25,14 +25,13 @@ import ai.grakn.graql.admin.Unifier;
 import ai.grakn.graql.admin.VarAdmin;
 import ai.grakn.graql.internal.reasoner.atom.Atom;
 import ai.grakn.graql.internal.reasoner.query.UnifierImpl;
-import ai.grakn.graql.internal.reasoner.rule.InferenceRule;
 import ai.grakn.util.ErrorMessage;
 
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-import static ai.grakn.graql.internal.reasoner.Utility.capture;
+import static ai.grakn.graql.internal.reasoner.ReasonerUtils.capture;
 
 /**
  *
@@ -58,7 +57,7 @@ public abstract class BinaryBase extends Atom {
     }
 
     protected abstract VarName extractValueVariableName(VarAdmin var);
-    protected abstract boolean predicatesEquivalent(BinaryBase atom);
+    protected abstract boolean hasEquivalentPredicatesWith(BinaryBase atom);
 
     public VarName getValueVariable() {
         return valueVariable;
@@ -69,17 +68,6 @@ public abstract class BinaryBase extends Atom {
 
     @Override
     public boolean isBinary() { return true;}
-
-    @Override
-    protected boolean isRuleApplicable(InferenceRule child) {
-        Atom ruleAtom = child.getHead().getAtom();
-        return (ruleAtom instanceof BinaryBase) && this.getType().equals(ruleAtom.getType());
-    }
-
-    @Override
-    public boolean requiresMaterialisation(){
-        return isUserDefinedName() && getType() != null && getType().isRelationType();
-    }
 
     @Override
     public int hashCode() {
@@ -106,7 +94,7 @@ public abstract class BinaryBase extends Atom {
         if (obj == this) return true;
         BinaryBase a2 = (BinaryBase) obj;
         return Objects.equals(this.typeId, a2.getTypeId())
-                && predicatesEquivalent(a2);
+                && hasEquivalentPredicatesWith(a2);
     }
 
     /**

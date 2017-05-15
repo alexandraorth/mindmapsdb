@@ -22,6 +22,7 @@ import ai.grakn.graql.VarName;
 import ai.grakn.graql.admin.Answer;
 import ai.grakn.graql.admin.ReasonerQuery;
 import ai.grakn.graql.admin.Unifier;
+import ai.grakn.graql.internal.query.QueryAnswer;
 import com.google.common.collect.Maps;
 import java.util.Collection;
 import java.util.HashSet;
@@ -33,9 +34,7 @@ import java.util.stream.Stream;
 /**
  *
  * <p>
- * Wrapper class for a set of answers providing higher level filtering facilities
- * as well as unification operation.
- * </p>
+ * Wrapper class for a set of {@link Answer} objects providing higher level facilities.
  *
  * @author Kasper Piskorski
  *
@@ -63,6 +62,7 @@ public class QueryAnswers implements Iterable<Answer>{
     public Stream<Answer> stream(){ return set.stream();}
 
     public QueryAnswers(){}
+    public QueryAnswers(Answer ans){ set.add(ans);}
     public QueryAnswers(Collection<Answer> ans){ ans.forEach(set::add);}
     public QueryAnswers(QueryAnswers ans){ ans.forEach(set::add);}
 

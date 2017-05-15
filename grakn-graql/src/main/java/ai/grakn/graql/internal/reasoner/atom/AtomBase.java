@@ -31,13 +31,13 @@ import com.google.common.collect.Sets;
 
 import java.util.Set;
 
-import static ai.grakn.graql.internal.reasoner.Utility.capture;
+import static ai.grakn.graql.internal.reasoner.ReasonerUtils.capture;
 
 
 /**
  *
  * <p>
- * Base atom implementation providing basic functionalities.
+ * Base {@link Atomic} implementation providing basic functionalities.
  * </p>
  *
  * @author Kasper Piskorski
@@ -58,6 +58,7 @@ public abstract class AtomBase implements Atomic {
     protected AtomBase(AtomBase a) {
         this.atomPattern = a.atomPattern;
         this.varName = atomPattern.asVar().getVarName();
+        this.parent = a.getParentQuery();
     }
 
     @Override
@@ -71,7 +72,7 @@ public abstract class AtomBase implements Atomic {
 
     @Override
     public boolean isUserDefinedName(){ return atomPattern.asVar().isUserDefinedName();}
-
+    
     @Override
     public VarName getVarName(){ return varName;}
 

@@ -17,69 +17,80 @@ along with Grakn. If not, see <http://www.gnu.org/licenses/gpl.txt>. -->
 
 
 <template>
-    <span v-if="editorLinesNumber>1" @click="toggleEditorCollapse"><i :class="[isEditorCollapsed ? 'pe-7s-angle-down-circle' : 'pe-7s-angle-up-circle']"></i></span>
+<span v-if="editorLinesNumber>1" @click="toggleEditorCollapse"><i :class="[isEditorCollapsed ? 'pe-7s-angle-down-circle' : 'pe-7s-angle-up-circle']"></i></span>
 </template>
 
 <style scoped>
-span{
-  color: #56C0E0;
-  font-size: 25px;
-  cursor: pointer;
-  margin: auto;
-  display: inline-flex;
+span {
+    color: #56C0E0;
+    font-size: 25px;
+    cursor: pointer;
+    margin: auto;
+    display: inline-flex;
 }
 </style>
 
 <script>
 export default {
-    name: "scrollButton",
-    props: ['editorLinesNumber'],
-    data() {
-        return {
-            initialEditorHeight: undefined,
-            isEditorCollapsed: false,
-        }
-    },
+  name: 'scrollButton',
+  props: ['editorLinesNumber', 'codeMirror'],
+  data() {
+    return {
+      initialEditorHeight: undefined,
+      isEditorCollapsed: false,
+    };
+  },
 
-    created() {},
-    watch: {
-        editorLinesNumber: function(newVal, oldVal) {
-            //Set auto height when going back to 1 line and reset the boolean
-            if (newVal === 1) {
-                $(".CodeMirror").css({
-                    'height': 'auto'
-                });
-                this.isEditorCollapsed = false;
-            }
-
-        }
-    },
-    mounted: function() {
-        this.$nextTick(function() {
-            $(document).ready(() => {
-                this.initialEditorHeight = $(".CodeMirror").height();
-            });
+  created() {},
+  watch: {
+    editorLinesNumber(newVal, oldVal) {
+            // Set auto height when going back to 1 line and reset the boolean
+      if (newVal === 1) {
+        $('.CodeMirror').css({
+          height: 'auto',
         });
+        this.isEditorCollapsed = false;
+      }
     },
+  },
+  mounted() {
+    this.$nextTick(function mountedScrollButton() {
+      $(document).ready(() => {
+        this.initialEditorHeight = $('.CodeMirror').height();
+        this.codeMirror.on('focus', (codeMirrorObj, changeObj) => {
+          if (this.isEditorCollapsed) {
+            $('.CodeMirror').animate({
+              height: $('.CodeMirror-sizer').outerHeight(),
+            }, 300, () => {
+              $('.CodeMirror').css({
+                height: 'auto',
+              });
+            });
+            this.isEditorCollapsed = false;
+          }
+        });
+      });
+    });
+  },
 
-    methods: {
-        toggleEditorCollapse() {
-            if (!this.isEditorCollapsed) {
-                $(".CodeMirror").animate({
-                    height: this.initialEditorHeight
-                }, 300);
-                this.isEditorCollapsed = true;
-            } else {
-                $(".CodeMirror").animate({
-                    height: $(".CodeMirror-sizer").outerHeight()
-                }, 300, function() {
-                    $(".CodeMirror").css({
-                        'height': 'auto'
-                    });
-                });
-                this.isEditorCollapsed = false;
-            }
-        }
-    }
-}
+  methods: {
+    toggleEditorCollapse() {
+      if (!this.isEditorCollapsed) {
+        $('.CodeMirror').animate({
+          height: this.initialEditorHeight,
+        }, 300);
+        this.isEditorCollapsed = true;
+      } else {
+        $('.CodeMirror').animate({
+          height: $('.CodeMirror-sizer').outerHeight(),
+        }, 300, () => {
+          $('.CodeMirror').css({
+            height: 'auto',
+          });
+        });
+        this.isEditorCollapsed = false;
+      }
+    },
+  },
+};
 </script>

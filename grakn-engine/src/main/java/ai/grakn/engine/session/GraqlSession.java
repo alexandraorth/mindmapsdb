@@ -106,6 +106,9 @@ class GraqlSession {
                 sendEnd();
             } catch (Throwable e) {
                 LOG.error(getFullStackTrace(e));
+                sendError(e.getMessage());
+                sendEnd();
+                session.close();
                 throw e;
             }
         });
@@ -117,6 +120,7 @@ class GraqlSession {
     }
 
     private void refreshGraph() {
+        if (graph != null && !graph.isClosed()) graph.close();
         graph = factory.open(GraknTxType.WRITE);
         graph.showImplicitConcepts(showImplicitTypes);
     }
@@ -227,7 +231,7 @@ class GraqlSession {
             } finally {
                 if (errorMessage != null) {
                     if (queries != null && !queries.stream().allMatch(Query::isReadOnly)) {
-                        graph.close();
+                        attemptRefresh();
                     }
                     sendQueryError(errorMessage);
                 }
@@ -245,7 +249,7 @@ class GraqlSession {
             try {
                 graph.commit();
             } catch (GraknValidationException e) {
-                sendCommitError(e.getMessage());
+                sendError(e.getMessage());
             } finally {
                 sendEnd();
                 attemptRefresh();
@@ -330,9 +334,9 @@ class GraqlSession {
     }
 
     /**
-     * Tell the client about an error during commit
+     * Tell the client about an error
      */
-    private void sendCommitError(String errorMessage) {
+    private void sendError(String errorMessage) {
         sendJson(Json.object(
                 ACTION, ACTION_ERROR,
                 ERROR, errorMessage
@@ -373,13 +377,13 @@ class GraqlSession {
 
     private Printer getPrinter(ResourceType... resources) {
         switch (outputFormat) {
-            case "graql":
-            default:
-                return Printers.graql(resources);
             case "json":
                 return Printers.json();
             case "hal":
                 return Printers.hal();
+            case "graql":
+            default:
+                return Printers.graql(true, resources);
         }
     }
 }

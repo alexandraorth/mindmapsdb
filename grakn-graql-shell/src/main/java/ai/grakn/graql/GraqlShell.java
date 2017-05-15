@@ -136,7 +136,7 @@ public class GraqlShell {
     );
 
     private static final String TEMP_FILENAME = "/graql-tmp.gql";
-    private static final String HISTORY_FILENAME = "/graql-history";
+    private static final String HISTORY_FILENAME = System.getProperty("user.home") + "/.graql-history";
 
     private static final String DEFAULT_EDITOR = "vim";
 
@@ -169,6 +169,8 @@ public class GraqlShell {
         options.addOption("f", "file", true, "graql file path to execute");
         options.addOption("r", "uri", true, "uri to factory to engine");
         options.addOption("b", "batch", true, "graql file path to batch load");
+        options.addOption("s", "size", true, "the size of the batches (must be used with -b)");
+        options.addOption("a", "active", true, "the number of active tasks (must be used with -b)");
         options.addOption("o", "output", true, "output format for results");
         options.addOption("u", "user", true, "username to sign in");
         options.addOption("p", "pass", true, "password to sign in");
@@ -193,14 +195,7 @@ public class GraqlShell {
 
         // Print usage message if requested or if invalid arguments provided
         if (cmd.hasOption("h") || !cmd.getArgList().isEmpty()) {
-            HelpFormatter helpFormatter = new HelpFormatter();
-            OutputStreamWriter outputStreamWriter = new OutputStreamWriter(System.out, Charset.defaultCharset());
-            PrintWriter printWriter = new PrintWriter(new BufferedWriter(outputStreamWriter));
-            int width = helpFormatter.getWidth();
-            int leftPadding = helpFormatter.getLeftPadding();
-            int descPadding = helpFormatter.getDescPadding();
-            helpFormatter.printHelp(printWriter, width, "graql.sh", null, options, leftPadding, descPadding, null);
-            printWriter.flush();
+            printUsage(options, null);
             return;
         }
 
@@ -221,10 +216,26 @@ public class GraqlShell {
 
         if (cmd.hasOption("b")) {
             try {
-                sendBatchRequest(uriString, cmd.getOptionValue("b"), keyspace);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+                Optional<Integer> activeTasks = Optional.empty();
+                Optional<Integer> batchSize = Optional.empty();
+                if (cmd.hasOption("a")) {
+                    activeTasks = Optional.of(Integer.parseInt(cmd.getOptionValue("a")));
+                }
+                if (cmd.hasOption("s")) {
+                    batchSize = Optional.of(Integer.parseInt(cmd.getOptionValue("s")));
+                }
+                try {
+                    sendBatchRequest(client.loaderClient(keyspace, uriString), cmd.getOptionValue("b"),
+                            activeTasks, batchSize);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            } catch (NumberFormatException e) {
+                printUsage(options, "Cannot cast argument to an integer "+e.getMessage());
             }
+            return;
+        } else if (cmd.hasOption("a") || cmd.hasOption("s")) {
+            printUsage(options, "The active or size option has been specified without batch.");
             return;
         }
 
@@ -247,6 +258,17 @@ public class GraqlShell {
         }
     }
 
+    private static void printUsage(Options options, String footer) {
+        HelpFormatter helpFormatter = new HelpFormatter();
+        OutputStreamWriter outputStreamWriter = new OutputStreamWriter(System.out, Charset.defaultCharset());
+        PrintWriter printWriter = new PrintWriter(new BufferedWriter(outputStreamWriter));
+        int width = helpFormatter.getWidth();
+        int leftPadding = helpFormatter.getLeftPadding();
+        int descPadding = helpFormatter.getDescPadding();
+        helpFormatter.printHelp(printWriter, width, "graql.sh", null, options, leftPadding, descPadding, footer);
+        printWriter.flush();
+    }
+
     private static List<String> loadQueries(String[] filePaths) throws IOException {
         List<String> queries = Lists.newArrayList();
 
@@ -262,16 +284,17 @@ public class GraqlShell {
             return lines.stream().collect(joining("\n"));
     }
 
-    private static void sendBatchRequest(String uriString, String graqlPath, String keyspace) throws IOException {
+    private static void sendBatchRequest(LoaderClient loaderClient, String graqlPath, Optional<Integer> activeTasks, Optional<Integer> batchSize) throws IOException {
         AtomicInteger numberBatchesCompleted = new AtomicInteger(0);
 
-        LoaderClient loaderClient = new LoaderClient(keyspace, uriString).setRetryPolicy(true);
+        activeTasks.ifPresent(loaderClient::setNumberActiveTasks);
+        batchSize.ifPresent(loaderClient::setBatchSize);
+
         loaderClient.setTaskCompletionConsumer((json) -> {
             TaskStatus status = TaskStatus.valueOf(json.at("status").asString());
-            int batch = Json.read(json.at("configuration").asString()).at("batchNumber").asInteger();
 
             numberBatchesCompleted.incrementAndGet();
-            System.out.println(format("Status of batch [%s]: %s", batch, status));
+            System.out.println(format("Status of batch: %s", status));
             System.out.println(format("Number batches completed: %s", numberBatchesCompleted.get()));
             System.out.println(format("Approximate queries executed: %s", numberBatchesCompleted.get() * loaderClient.getBatchSize()));
         });
@@ -443,7 +466,7 @@ public class GraqlShell {
 
     private boolean setupHistory() throws IOException {
         // Create history file
-        File historyFile = new File(System.getProperty("java.io.tmpdir") + historyFilename);
+        File historyFile = new File(historyFilename);
         boolean fileCreated = historyFile.createNewFile();
         FileHistory history = new FileHistory(historyFile);
         console.setHistory(history);
@@ -491,6 +514,9 @@ public class GraqlShell {
 
         session.sendJson(Json.object(ACTION, ACTION_END));
         handleMessagesFromServer();
+
+        // Flush the console so the output is all displayed before the next command
+        console.flush();
     }
 
     private void handleMessagesFromServer() {

@@ -13,6 +13,7 @@ import ai.grakn.concept.ResourceType;
 import ai.grakn.concept.RoleType;
 import ai.grakn.concept.RuleType;
 import ai.grakn.concept.Type;
+import ai.grakn.concept.TypeLabel;
 import ai.grakn.exception.GraknValidationException;
 import ai.grakn.exception.GraphRuntimeException;
 import ai.grakn.util.ErrorMessage;
@@ -21,10 +22,15 @@ import org.apache.tinkerpop.gremlin.process.traversal.strategy.verification.Veri
 import org.junit.Test;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static ai.grakn.graql.Graql.var;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -125,18 +131,24 @@ public class GraknGraphTest extends GraphTestBase {
 
     @Test
     public void whenClosingReadOnlyGraph_EnsureTypesAreCached(){
-        assertThat(graknGraph.getCachedOntology().asMap().keySet(), is(empty()));
+        assertCacheOnlyContainsMetaTypes();
         graknGraph.getMetaConcept().subTypes(); //This loads some types into transaction cache
         graknGraph.abort();
-        assertThat(graknGraph.getCachedOntology().asMap().values(), is(empty())); //Ensure central cache is empty
+        assertCacheOnlyContainsMetaTypes(); //Ensure central cache is empty
 
         graknGraph = (AbstractGraknGraph<?>) Grakn.session(Grakn.IN_MEMORY, graknGraph.getKeyspace()).open(GraknTxType.READ);
         Collection<? extends Type> types = graknGraph.getMetaConcept().subTypes();
         graknGraph.abort();
 
-        for (Type type : graknGraph.getCachedOntology().asMap().values()) {
+        for (Type type : graknGraph.getGraphCache().getCachedTypes().values()) {
             assertTrue("Type [" + type + "] is missing from central cache after closing read only graph", types.contains(type));
         }
+    }
+    private void assertCacheOnlyContainsMetaTypes(){
+        Set<TypeLabel> metas = Stream.of(Schema.MetaSchema.values()).map(Schema.MetaSchema::getLabel).collect(Collectors.toSet());
+        graknGraph.getGraphCache().getCachedTypes().keySet().forEach(cachedLabel -> {
+            assertTrue("Type [" + cachedLabel + "] is missing from central cache", metas.contains(cachedLabel));
+        });
     }
 
     @Test
@@ -236,7 +248,7 @@ public class GraknGraphTest extends GraphTestBase {
     @Test
     public void checkThatMainCentralCacheIsNotAffectedByTransactionModifications() throws GraknValidationException, ExecutionException, InterruptedException {
         //Check Central cache is empty
-        assertTrue(graknGraph.getCachedOntology().asMap().isEmpty());
+        assertCacheOnlyContainsMetaTypes();
 
         RoleType r1 = graknGraph.putRoleType("r1");
         RoleType r2 = graknGraph.putRoleType("r2");
@@ -248,9 +260,11 @@ public class GraknGraphTest extends GraphTestBase {
         graknGraph = (AbstractGraknGraph<?>) Grakn.session(Grakn.IN_MEMORY, graknGraph.getKeyspace()).open(GraknTxType.WRITE);
 
         //Check cache is in good order
-        assertThat(graknGraph.getCachedOntology().asMap().values(), containsInAnyOrder(r1, r2, e1, rel1,
-                graknGraph.getMetaConcept(), graknGraph.getMetaEntityType(),
-                graknGraph.getMetaRelationType(), graknGraph.getMetaRoleType()));
+        Collection<Type> cachedValues = graknGraph.getGraphCache().getCachedTypes().values();
+        assertTrue("Type [" + r1 + "] was not cached", cachedValues.contains(r1));
+        assertTrue("Type [" + r2 + "] was not cached", cachedValues.contains(r2));
+        assertTrue("Type [" + e1 + "] was not cached", cachedValues.contains(e1));
+        assertTrue("Type [" + rel1 + "] was not cached", cachedValues.contains(rel1));
 
         assertThat(e1.plays(), containsInAnyOrder(r1, r2));
 
@@ -264,7 +278,7 @@ public class GraknGraphTest extends GraphTestBase {
         }).get();
 
         //Check the above mutation did not affect central repo
-        Type foundE1 = graknGraph.getCachedOntology().asMap().get(e1.getLabel());
+        Type foundE1 = graknGraph.getGraphCache().getCachedTypes().get(e1.getLabel());
         assertTrue("Main cache was affected by transaction", foundE1.plays().contains(r1));
     }
 
@@ -363,6 +377,48 @@ public class GraknGraphTest extends GraphTestBase {
         assertNotNull(exception);
         assertThat(exception, instanceOf(GraphRuntimeException.class));
         assertEquals(exception.getMessage(), ErrorMessage.TRANSACTION_ALREADY_OPEN.getMessage(keyspace));
+    }
+
+    @Test
+    public void whenShardingSuperNode_EnsureNewInstancesGoToNewShard(){
+        Map<TypeLabel, Long> counts = new HashMap<>();
+        EntityTypeImpl entityType = (EntityTypeImpl) graknGraph.putEntityType("The Special Type");
+        EntityType s1 = entityType.currentShard();
+
+        //Add 3 instances to first shard
+        Entity s1_e1 = entityType.addEntity();
+        Entity s1_e2 = entityType.addEntity();
+        Entity s1_e3 = entityType.addEntity();
+        counts.put(entityType.getLabel(), 200_000L); //Fake the creation of a super node
+
+        graknGraph.admin().updateTypeShards(counts); //Shard
+        EntityType s2 = entityType.currentShard();
+
+        //Add 5 instances to second shard
+        Entity s2_e1 = entityType.addEntity();
+        Entity s2_e2 = entityType.addEntity();
+
+        counts.put(entityType.getLabel(), 90_000L);
+        graknGraph.admin().updateTypeShards(counts); //Don't Shard because we not near super nodes
+
+        Entity s2_e3 = entityType.addEntity();
+        Entity s2_e4 = entityType.addEntity();
+        Entity s2_e5 = entityType.addEntity();
+
+        graknGraph.admin().updateTypeShards(counts); //Shard Again
+        EntityType s3 = entityType.currentShard();
+
+        //Add 2 instances to 3rd shard
+        Entity s3_e1 = entityType.addEntity();
+        Entity s3_e2 = entityType.addEntity();
+
+        //Check Type was sharded correctly
+        assertThat(entityType.shards(), containsInAnyOrder(s1, s2, s3));
+
+        //Check shards have correct instances
+        assertThat(s1.instances(), containsInAnyOrder(s1_e1, s1_e2, s1_e3));
+        assertThat(s2.instances(), containsInAnyOrder(s2_e1, s2_e2, s2_e3, s2_e4, s2_e5));
+        assertThat(s3.instances(), containsInAnyOrder(s3_e1, s3_e2));
     }
 
     @Test

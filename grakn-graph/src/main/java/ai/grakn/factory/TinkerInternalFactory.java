@@ -37,7 +37,7 @@ import java.util.Properties;
  *
  * @author fppt
  */
-class TinkerInternalFactory extends AbstractInternalFactory<GraknTinkerGraph, TinkerGraph> {
+public class TinkerInternalFactory extends AbstractInternalFactory<GraknTinkerGraph, TinkerGraph> {
 
     TinkerInternalFactory(String keyspace, String engineUrl, Properties properties){
         super(keyspace, engineUrl, properties);
@@ -49,7 +49,7 @@ class TinkerInternalFactory extends AbstractInternalFactory<GraknTinkerGraph, Ti
 
     @Override
     GraknTinkerGraph buildGraknGraphFromTinker(TinkerGraph graph, boolean batchLoading) {
-        return new GraknTinkerGraph(graph, super.keyspace, super.engineUrl, batchLoading);
+        return new GraknTinkerGraph(graph, super.keyspace, super.engineUrl, batchLoading, properties);
     }
 
     @Override

@@ -19,14 +19,12 @@
 package ai.grakn.graql.internal.query;
 
 import ai.grakn.GraknGraph;
-import ai.grakn.concept.Concept;
 import ai.grakn.graql.Aggregate;
 import ai.grakn.graql.AggregateQuery;
 import ai.grakn.graql.Printer;
+import ai.grakn.graql.admin.Answer;
 import ai.grakn.graql.admin.MatchQueryAdmin;
-import ai.grakn.graql.VarName;
 
-import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -36,9 +34,9 @@ import java.util.stream.Stream;
 class AggregateQueryImpl<T> implements AggregateQuery<T> {
 
     private final MatchQueryAdmin matchQuery;
-    private final Aggregate<? super Map<VarName, Concept>, T> aggregate;
+    private final Aggregate<? super Answer, T> aggregate;
 
-    AggregateQueryImpl(MatchQueryAdmin matchQuery, Aggregate<? super Map<VarName, Concept>, T> aggregate) {
+    AggregateQueryImpl(MatchQueryAdmin matchQuery, Aggregate<? super Answer, T> aggregate) {
         this.matchQuery = matchQuery;
         this.aggregate = aggregate;
     }
@@ -50,7 +48,7 @@ class AggregateQueryImpl<T> implements AggregateQuery<T> {
 
     @Override
     public T execute() {
-        return aggregate.apply(matchQuery.streamWithVarNames());
+        return aggregate.apply(matchQuery.stream());
     }
 
     @Override
@@ -60,8 +58,8 @@ class AggregateQueryImpl<T> implements AggregateQuery<T> {
 
     @Override
     public boolean isReadOnly() {
-        // An aggregate query may modify the graph if using a user-defined aggregate method
-        return false;
+        //TODO An aggregate query may modify the graph if using a user-defined aggregate method. See TP # 13731.
+        return true;
     }
 
     @Override

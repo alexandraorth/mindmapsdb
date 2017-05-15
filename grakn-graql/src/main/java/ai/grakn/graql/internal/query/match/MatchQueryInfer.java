@@ -21,9 +21,9 @@ package ai.grakn.graql.internal.query.match;
 import ai.grakn.GraknGraph;
 import ai.grakn.graql.admin.Answer;
 import ai.grakn.graql.admin.Conjunction;
-import ai.grakn.graql.admin.ReasonerQuery;
 import ai.grakn.graql.admin.VarAdmin;
-import ai.grakn.graql.internal.reasoner.Reasoner;
+import ai.grakn.graql.internal.reasoner.ReasonerUtils;
+import ai.grakn.graql.internal.reasoner.query.ReasonerQueries;
 import ai.grakn.graql.internal.reasoner.query.ReasonerQueryImpl;
 import ai.grakn.util.ErrorMessage;
 
@@ -51,14 +51,16 @@ class MatchQueryInfer extends MatchQueryModifier {
                 () -> new IllegalStateException(ErrorMessage.NO_GRAPH.getMessage())
         );
 
-        if (!Reasoner.hasRules(graph)) return inner.stream(optionalGraph);
+        if (!ReasonerUtils.hasRules(graph)) return inner.stream(optionalGraph);
 
         Iterator<Conjunction<VarAdmin>> conjIt = getPattern().getDisjunctiveNormalForm().getPatterns().iterator();
-        ReasonerQuery conjunctiveQuery = new ReasonerQueryImpl(conjIt.next(), graph);
-        Stream<Answer> answerStream = conjunctiveQuery.resolve(materialise, true);
+        Conjunction<VarAdmin> conj = conjIt.next();
+        ReasonerQueryImpl conjQuery = ReasonerQueries.create(conj, graph);
+        Stream<Answer> answerStream = conjQuery.isRuleResolvable()? conjQuery.resolve(materialise, true) : graph.graql().match(conj).stream();
         while(conjIt.hasNext()) {
-            conjunctiveQuery = new ReasonerQueryImpl(conjIt.next(), graph);
-            Stream<Answer> localStream = conjunctiveQuery.resolve(materialise, true);
+            conj = conjIt.next();
+            conjQuery = ReasonerQueries.create(conj, graph);
+            Stream<Answer> localStream = conjQuery.isRuleResolvable()? conjQuery.resolve(materialise, true) : graph.graql().match(conj).stream();
             answerStream = Stream.concat(answerStream, localStream);
         }
         return answerStream.map(result -> result.filterVars(getSelectedNames()));

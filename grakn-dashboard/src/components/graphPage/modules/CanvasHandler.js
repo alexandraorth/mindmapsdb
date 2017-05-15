@@ -15,291 +15,179 @@
  * You should have received a copy of the GNU General Public License
  * along with Grakn. If not, see <http://www.gnu.org/licenses/gpl.txt>.
  */
-import Visualiser from '../../../js/visualiser/Visualiser';
-import HALParser, { URL_REGEX } from '../../../js/HAL/HALParser';
-import EngineClient from '../../../js/EngineClient';
+/* @flow */
+
+import HALParser from '../../../js/HAL/HALParser';
 import * as Utils from '../../../js/HAL/APIUtils';
+import EngineClient from '../../../js/EngineClient';
 import User from '../../../js/User';
 import * as API from '../../../js/util/HALTerms';
+import { EventHub } from '../../../js/state/graphPageState';
+import CanvasEvents from './CanvasEvents';
 
-export default class CanvasHandler {
 
-  constructor(graphPageState) {
-    this.state = graphPageState;
-    // TODO: make a more clear division of functions used to draw selection rectangle
-    this.graphOffsetTop = undefined;
-    window.visualiser = new Visualiser();
+function clearGraph() {
+  visualiser.clearGraph();
+}
 
-    visualiser.setCallbackOnEvent('click', param => this.singleClick(param));
-    visualiser.setCallbackOnEvent('doubleClick', param => this.doubleClick(param));
-    visualiser.setCallbackOnEvent('oncontext', param => this.rightClick(param));
-    visualiser.setCallbackOnEvent('hold', param => this.holdOnNode(param));
-    visualiser.setCallbackOnEvent('hoverNode', param => this.hoverNode(param));
-    visualiser.setCallbackOnEvent('blurNode', param => this.blurNode(param));
-    visualiser.setCallbackOnEvent('dragStart', param => this.onDragStart(param));
 
-    this.halParser = new HALParser();
-
-    this.halParser.setNewResource((id, p, a, l, cn) => visualiser.addNode(id, p, a, l, cn));
-    this.halParser.setNewRelationship((f, t, l) => visualiser.addEdge(f, t, l));
-    this.halParser.setNodeAlreadyInGraph(id => visualiser.nodeExists(id));
-
-    // vars
-    this.doubleClickTime = 0;
-  }
-
-  renderGraph(graphElement, graphOffsetTop) {
-    this.graphOffsetTop = graphOffsetTop;
-    visualiser.render(graphElement);
-  }
-
-  clearGraph() {
-    visualiser.clearGraph();
-  }
-
-  // //////////////////////////////////////////////////// ----------- Graph mouse interactions ------------ ///////////////////////////////////////////////////////////
-
-  holdOnNode(param) {
-    const node = param.nodes[0];
-    if (node === undefined) return;
-    this.state.eventHub.$emit('show-label-panel', visualiser.getAllNodeProperties(node), visualiser.getNodeType(node), node);
-  }
-
-  doubleClick(param) {
-    this.doubleClickTime = new Date();
-    const node = param.nodes[0];
-    if (node === undefined) {
-      return;
-    }
-
-    const eventKeys = param.event.srcEvent;
-    const nodeObj = visualiser.getNode(node);
-
-    if (eventKeys.shiftKey) {
-      this.requestOntology(nodeObj);
-    } else {
-      let generatedNode = false;
-      // If we are popping a generated relationship we need to append the 'reasoner' parameter to the URL
-      if (nodeObj.baseType === API.GENERATED_RELATION_TYPE) {
-        generatedNode = true;
-      }
-
-      EngineClient.request({
-        url: nodeObj.href,
-        appendReasonerParams: generatedNode,
-      }).then(resp => this.onGraphResponse(resp, node), (err) => {
-        this.state.eventHub.$emit('error-message', err.message);
-      });
-      if (generatedNode) {
-        visualiser.deleteNode(node);
-      }
-    }
-  }
-
-  rightClick(param) {
-    const node = param.nodes[0];
-    if (node === undefined) {
-      return;
-    }
-
-    if (param.event.shiftKey) {
-      param.nodes.forEach((x) => {
-        visualiser.deleteNode(x);
-      });
-    }
-  }
-
-  hoverNode(param) {
-    this.state.eventHub.$emit('hover-node', param);
-  }
-
-  blurNode() {
-    this.state.eventHub.$emit('blur-node');
-  }
-  requestOntology(nodeObj) {
-      // If alt key is pressed we load ontology related to the current node
-    if (nodeObj.ontology) {
-      EngineClient.request({
-        url: nodeObj.ontology,
-      }).then(resp => this.onGraphResponseOntology(resp, nodeObj.id), (err) => {
-        this.state.eventHub.$emit('error-message', err.message);
-      });
-    }
-  }
-  leftClick(param) {
-      // TODO: handle multiselect properly now that is enabled.
-    const node = param.nodes[0];
-    const eventKeys = param.event.srcEvent;
-    const clickType = param.event.type;
-
-      // If it is a long press on node: return and onHold() method will handle the event.
-    if (clickType !== 'tap') {
-      return;
-    }
-
-      // Check if we need to start or stop drawing the selection rectangle
-    this.checkSelectionRectangleStatus(node, eventKeys, param);
-
-    if (node === undefined) {
-      return;
-    }
-
-    const nodeObj = visualiser.getNode(node);
-
-    if (eventKeys.shiftKey) {
-      this.requestOntology(nodeObj);
-    } else {
-          // Show node properties on node panel.
-      const ontologyProps = {
-        id: nodeObj.id,
-        type: nodeObj.type,
-        baseType: nodeObj.baseType,
-      };
-
-      const nodeResources = this.prepareResources(nodeObj.properties);
-      const nodeLabel = visualiser.getNodeLabel(node);
-      this.state.eventHub.$emit('show-node-panel', ontologyProps, nodeResources, nodeLabel);
-    }
-  }
-
-  singleClick(param) {
-      // Everytime the user clicks on canvas we clear the context-menu and tooltip
-    this.state.eventHub.$emit('close-context');
-    this.state.eventHub.$emit('close-tooltip');
-
-    const t0 = new Date();
-    const threshold = 200;
-      // all this fun to be able to distinguish a single click from a double click
-    if (t0 - this.doubleClickTime > threshold) {
-      setTimeout(() => {
-        if (t0 - this.doubleClickTime > threshold) {
-          this.leftClick(param);
-        }
-      }, threshold);
-    }
-  }
-
-  onDragStart(params) {
-    const eventKeys = params.event.srcEvent;
-    visualiser.draggingNode = true;
-    this.state.eventHub.$emit('close-tooltip');
-      // If ctrl key is pressed while dragging node/nodes we also unlock and drag the connected nodes
-    if (eventKeys.ctrlKey) {
-      const neighbours = [];
-      params.nodes.forEach((node) => {
-        neighbours.push(...visualiser.network.getConnectedNodes(node));
-        neighbours.push(node);
-      });
-      visualiser.network.selectNodes(neighbours);
-      visualiser.releaseNodes(neighbours);
-    } else {
-      visualiser.releaseNodes(params.nodes);
-    }
-  }
-
-  // ----- End of graph interactions ------- //
-
-  onClickSubmit(query) {
-    if (query.includes('aggregate')) {
+function onClickSubmit(query:string) {
+  if (query.includes('aggregate')) {
           // Error message until we will not properly support aggregate queries in graph page.
-      this.state.eventHub.$emit('error-message', 'Invalid query: \'aggregate\' queries are not allowed from the Graph page. Please use the Console page.');
-      return;
-    }
-
-    if (query.trim().startsWith('compute')) {
-      EngineClient.graqlAnalytics(query).then(resp => this.onGraphResponseAnalytics(resp), (err) => {
-        this.state.eventHub.$emit('error-message', err.message);
-      });
-    } else {
-      let queryToExecute = query.trim();
-
-      if (!(query.includes('offset')) && !(query.includes('delete'))) { queryToExecute = `${queryToExecute} offset 0;`; }
-      if (!(query.includes('limit')) && !(query.includes('delete'))) { queryToExecute = `${queryToExecute} limit ${User.getQueryLimit()};`; }
-      this.state.eventHub.$emit('inject-query', queryToExecute);
-      EngineClient.graqlHAL(queryToExecute).then((resp, nodeId) => this.onGraphResponse(resp, nodeId), (err) => {
-        this.state.eventHub.$emit('error-message', err.message);
-      });
-    }
+    EventHub.$emit('error-message', 'Invalid query: \'aggregate\' queries are not allowed from the Graph page. Please use the Console page.');
+    return;
   }
 
+  if (query.startsWith('compute')) {
+      // If analytics query contains path we execute a HAL request
+    if (query.includes('path')) {
+      EngineClient.graqlHAL(query).then(resp => onGraphResponse(resp, false, false), (err) => {
+        EventHub.$emit('error-message', err.message);
+      });
+    } else {
+      EngineClient.graqlAnalytics(query).then(resp => onGraphResponseAnalytics(resp), (err) => {
+        EventHub.$emit('error-message', err.message);
+      });
+    }
+  } else {
+    let queryToExecute = query.trim();
 
-  onLoadOntology(type) {
-    const querySub = `match $x sub ${type};`;
-    EngineClient.graqlHAL(querySub).then((resp, nodeId) => this.onGraphResponse(resp, nodeId), (err) => {
-      this.state.eventHub.$emit('error-message', err.message);
+    if (!(query.includes('offset')) && !(query.includes('delete'))) { queryToExecute = `${queryToExecute} offset 0;`; }
+    if (!(query.includes('limit')) && !(query.includes('delete'))) { queryToExecute = `${queryToExecute} limit ${User.getQueryLimit()};`; }
+    EventHub.$emit('inject-query', queryToExecute);
+    EngineClient.graqlHAL(queryToExecute).then((resp, nodeId) => onGraphResponse(resp, false, false, nodeId), (err) => {
+      EventHub.$emit('error-message', err.message);
     });
   }
-  // //----------- Render Engine responses ------------------ ///
+}
 
-  onGraphResponseAnalytics(resp) {
-    const responseObject = JSON.parse(resp);
-    if (responseObject.type === 'string') {
-      this.state.eventHub.$emit('analytics-string-response', responseObject.response);
-    } else {
-      this.halParser.parseResponse(responseObject.response, false, false);
-      visualiser.fitGraphToWindow();
-    }
-  }
+function onLoadOntology(type:string) {
+  const querySub = `match $x sub ${type};`;
+  EngineClient.graqlHAL(querySub).then(resp => onGraphResponse(resp, false, false), (err) => {
+    EventHub.$emit('error-message', err.message);
+  });
+}
 
-  onGraphResponse(resp, nodeId) {
-    const responseObject = JSON.parse(resp);
-    if (!this.halParser.parseResponse(responseObject, false, false, nodeId)) {
-      this.state.eventHub.$emit('warning-message', 'No results were found for your query.');
-    } else if (nodeId) {
-      // When a nodeId is provided is because the user double-clicked on a node, so we need to update its href
+function onGraphResponseAnalytics(resp:string) {
+  const responseObject = JSON.parse(resp).response;
+  EventHub.$emit('analytics-string-response', responseObject);
+}
+
+function filterNodesToRender(responseObject:Object|Object[], parsedResponse:Object, showResources:boolean) {
+  const dataArray = (Array.isArray(responseObject)) ? responseObject : [responseObject];
+    // Populate map containing all the first level objects returned in the response, they MUST be added to the graph.
+  const firstLevelNodes = dataArray.reduce((accumulator, current) => Object.assign(accumulator, { [current._id]: true }), {});
+
+    // Add embedded object to the graph only if one of the following is satisfied:
+    // - the current node is not a RESOURCE_TYPE || showResources is set to true
+    // - the current node is already drawn in the graph
+    // - the current node is contained in the response as first level object (not embdedded)
+    //    if it's contained in firstLevelNodes it means it MUST be drawn and so all the edges pointing to it.
+
+  return parsedResponse.nodes.filter(node => (((node.properties.baseType !== API.RESOURCE_TYPE)
+          && (node.properties.baseType !== API.RESOURCE)
+          || showResources)
+          || (firstLevelNodes[node.properties.id])
+          || visualiser.nodeExists(node.properties.id)));
+}
+
+function updateNodeHref(nodeId:string, responseObject:Object) {
+     // When a nodeId is provided is because the user double-clicked on a node, so we need to update its href
       // which will contain a new value for offset
       // Check if the node still in the Dataset, if not (generated relation), don't update href
-      if (visualiser.getNode(nodeId)) {
-        visualiser.updateNode({
-          id: nodeId,
-          href: responseObject._links.self.href,
-        });
-      }
-    }
-    visualiser.fitGraphToWindow();
+  if (visualiser.getNode(nodeId) && ('_links' in responseObject)) {
+    visualiser.updateNode({
+      id: nodeId,
+      href: responseObject._links.self.href,
+    });
   }
-
-  onGraphResponseOntology(resp, nodeId) {
-    if (!this.halParser.parseResponse(JSON.parse(resp), true, true, nodeId)) {
-      this.state.eventHub.$emit('warning-message', 'No results were found for your query.');
-    }
-    visualiser.fitGraphToWindow();
-  }
-
-  checkSelectionRectangleStatus(node, eventKeys, param) {
-      // If we were drawing rectangle and we click again we stop the drawing and compute selected nodes
-    if (visualiser.draggingRect) {
-      visualiser.draggingRect = false;
-      visualiser.resetRectangle();
-      visualiser.network.redraw();
-    } else if (eventKeys.ctrlKey && node === undefined) {
-      visualiser.draggingRect = true;
-      visualiser.startRectangle(param.pointer.canvas.x, param.pointer.canvas.y - this.graphOffsetTop);
-    }
-  }
-
-  /**
-   * Prepare the list of resources to be shown in the right div panel
-   * It sorts them alphabetically and then check if a resource value is a URL
-   */
-  prepareResources(originalObject) {
-    if (originalObject == null) return {};
-    return Object.keys(originalObject).sort().reduce(
-          // sortedObject is the accumulator variable, i.e. new object with sorted keys
-          // k is the current key
-          (sortedObject, k) => {
-              // Add 'href' field to the current object, it will be set to TRUE if it contains a valid URL, FALSE otherwise
-            const currentResourceWithHref = Object.assign({}, originalObject[k], {
-              href: CanvasHandler.validURL(originalObject[k].label),
-            });
-            return Object.assign({}, sortedObject, {
-              [k]: currentResourceWithHref,
-            });
-          }, {});
-  }
-  static validURL(str) {
-    const pattern = new RegExp(URL_REGEX, 'i');
-    return pattern.test(str);
-  }
-
 }
+
+function loadInstancesResources(start:number, instances:Object[]) {
+  const batchSize = 50;
+  const promises = [];
+
+    // Add a batchSize number of requests to the promises array
+  for (let i = start; i < start + batchSize; i++) {
+    if (i >= instances.length) {
+        // When all the requests are loaded in promises flush the remaining ones and update labels on nodes
+      flushPromises(promises).then(() => visualiser.refreshLabels(instances));
+      return;
+    }
+    promises.push(EngineClient.request({
+      url: instances[i].explore,
+    }));
+  }
+  flushPromises(promises).then(() => loadInstancesResources(start + batchSize, instances));
+}
+
+function flushPromises(promises:Object[]) {
+  return Promise.all(promises).then((responses) => {
+    responses.forEach((resp) => {
+      const respObj = JSON.parse(resp).response;
+        // Check if some of the resources attached to this node are already drawn in the graph:
+        // if a resource is already in the graph (because explicitly asked for (e.g. all relations with weight > 0.5 ))
+        // we need to draw the edges connecting this node to the resource node.
+      onGraphResponse(resp, false, false);
+      visualiser.updateNodeResources(respObj[API.KEY_ID], Utils.extractResources(respObj));
+    });
+    visualiser.flushUpdates();
+  });
+}
+
+
+/*
+* Public functions
+*/
+
+function initialise(graphElement:Object) {
+  EventHub.$on('clear-page', () => clearGraph());
+  EventHub.$on('click-submit', query => onClickSubmit(query));
+  EventHub.$on('load-ontology', type => onLoadOntology(type));
+  CanvasEvents.registerCanvasEvents();
+  // Render visualiser only after having registered all the events handlers.
+  visualiser.render(graphElement);
+}
+
+function onGraphResponse(resp:string, showIsa:boolean, showResources:boolean, nodeId:?string) {
+  const responseObject = JSON.parse(resp).response;
+  const parsedResponse = HALParser.parseResponse(responseObject, showIsa);
+
+  if (!parsedResponse.nodes.length) {
+    EventHub.$emit('warning-message', 'No results were found for your query.');
+    return;
+  }
+
+  const filteredNodes = filterNodesToRender(responseObject, parsedResponse, showResources);
+
+    // Collect instances from filteredNodes to lazy load their resources.
+  const instances = filteredNodes
+                    .map(x => x.properties)
+                    .filter(node => ((node.baseType === API.ENTITY || node.baseType === API.RELATION || node.baseType === API.RULE) && (!visualiser.nodeExists(node.id))));
+
+  filteredNodes.forEach(node => visualiser.addNode(node.properties, node.resources, node.links, nodeId));
+  parsedResponse.edges.forEach(edge => visualiser.addEdge(edge.from, edge.to, edge.label));
+
+  loadInstancesResources(0, instances);
+
+  if (nodeId) updateNodeHref(nodeId, responseObject);
+
+  visualiser.fitGraphToWindow();
+}
+
+function fetchFilteredRelations(href:string) {
+  EngineClient.request({
+    url: href,
+  }).then(resp => onGraphResponse(resp, false, false), (err) => {
+    EventHub.$emit('error-message', err.message);
+  });
+}
+
+function loadResourceOwners(resourceId:string) {
+  EngineClient.request({
+    url: resourceId,
+  }).then(resp => onGraphResponse(resp, false, true));
+}
+
+
+export default { initialise, onGraphResponse, fetchFilteredRelations, loadResourceOwners };

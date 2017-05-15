@@ -20,75 +20,80 @@ package ai.grakn.client;
 
 import ai.grakn.Grakn;
 import ai.grakn.GraknGraph;
-import ai.grakn.concept.Entity;
+import ai.grakn.GraknSession;
+import ai.grakn.GraknTxType;
 import ai.grakn.concept.EntityType;
 import ai.grakn.concept.ResourceType;
-import ai.grakn.engine.controller.TasksController;
-import ai.grakn.engine.tasks.TaskManager;
-import ai.grakn.engine.tasks.manager.StandaloneTaskManager;
-import ai.grakn.engine.util.EngineID;
 import ai.grakn.graql.Graql;
 import ai.grakn.graql.InsertQuery;
-import ai.grakn.test.GraphContext;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import ai.grakn.test.EngineContext;
+import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import spark.Service;
+import org.junit.contrib.java.lang.system.SystemOutRule;
 
-import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static ai.grakn.engine.GraknEngineServer.configureSpark;
 import static ai.grakn.graql.Graql.var;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
 import static java.util.stream.Stream.generate;
 import static org.mockito.Mockito.*;
 
 public class LoaderClientTest {
 
-    private static final int PORT = 4567;
-    private static TaskManager manager = new StandaloneTaskManager(EngineID.me());
-    private static Service spark;
+    private GraknSession session;
 
     @Rule
-    public final GraphContext graphContext = GraphContext.empty();
+    public final SystemOutRule systemOut = new SystemOutRule().enableLog();
 
-    @BeforeClass
-    public static void setupSpark(){
-        spark = Service.ignite();
-        configureSpark(spark, PORT);
+    @ClassRule
+    public static final EngineContext engine = EngineContext.startInMemoryServer();
 
-        new TasksController(spark, manager);
-
-        spark.awaitInitialization();
+    @Before
+    public void setupSession(){
+        this.session = engine.factoryWithNewKeyspace();
     }
 
-    //TODO put this method into a base class for all controller tests
-    @AfterClass
-    public static void closeSpark() throws Exception {
-        stopSpark();
-        manager.close();
+    @Test
+    public void whenSingleQueryLoadedAndTaskCompletionFunctionThrowsError_ErrorIsLogged(){
+        // Create a LoaderClient with a callback that will fail
+        LoaderClient loader = loader();
+        loader.setTaskCompletionConsumer((json) -> assertTrue("Testing Log failure",false));
+
+        // Load some queries
+        generate(this::query).limit(1).forEach(loader::add);
+
+        // Wait for queries to finish
+        loader.waitToFinish();
+
+        // Verify that the logger received the failed log message
+        assertThat(systemOut.getLog(), containsString("error in callback"));
     }
 
-    private static void stopSpark(){
-        spark.stop();
+    @Test
+    public void whenSingleQueryLoaded_TaskCompletionExecutesExactlyOnce(){
+        AtomicInteger tasksCompleted = new AtomicInteger(0);
 
-        // Block until server is truly stopped
-        // This occurs when there is no longer a port assigned to the Spark server
-        boolean running = true;
-        while (running) {
-            try {
-                spark.port();
-            } catch(IllegalStateException e){
-                running = false;
-            }
-        }
+        // Create a LoaderClient with a callback that will fail
+        LoaderClient loader = loader();
+        loader.setTaskCompletionConsumer((json) -> tasksCompleted.incrementAndGet());
+
+        // Load some queries
+        generate(this::query).limit(1).forEach(loader::add);
+
+        // Wait for queries to finish
+        loader.waitToFinish();
+
+        // Verify that the logger received the failed log message
+        assertEquals(1, tasksCompleted.get());
     }
 
     @Test
@@ -98,8 +103,9 @@ public class LoaderClientTest {
         generate(this::query).limit(100).forEach(loader::add);
         loader.waitToFinish();
 
-        Collection<Entity> nameTags = graphContext.graph().getEntityType("name_tag").instances();
-        assertEquals(100, nameTags.size());
+        try (GraknGraph graph = session.open(GraknTxType.READ)) {
+            assertEquals(100, graph.getEntityType("name_tag").instances().size());
+        }
     }
 
     @Test
@@ -136,8 +142,9 @@ public class LoaderClientTest {
 
         loader.waitToFinish();
 
-        Collection<Entity> nameTags = graphContext.graph().getEntityType("name_tag").instances();
-        assertEquals(20, nameTags.size());
+        try (GraknGraph graph = session.open(GraknTxType.READ)) {
+            assertEquals(20, graph.getEntityType("name_tag").instances().size());
+        }
     }
 
     @Test
@@ -157,8 +164,8 @@ public class LoaderClientTest {
             loader.add(query());
 
             if(i%10 == 0) {
-                stopSpark();
-                setupSpark();
+                engine.server().stopHTTP();
+                engine.server().startHTTP();
             }
         }
 
@@ -189,8 +196,8 @@ public class LoaderClientTest {
             loader.add(query());
 
             if(i%10 == 0) {
-                stopSpark();
-                setupSpark();
+                engine.server().stopHTTP();
+                engine.server().startHTTP();
             }
         }
 
@@ -202,17 +209,17 @@ public class LoaderClientTest {
 
     private LoaderClient loader(){
         // load ontology
-        try(GraknGraph graph = graphContext.graph()){
+        try(GraknGraph graph = session.open(GraknTxType.WRITE)){
             EntityType nameTag = graph.putEntityType("name_tag");
             ResourceType<String> nameTagString = graph.putResourceType("name_tag_string", ResourceType.DataType.STRING);
             ResourceType<String> nameTagId = graph.putResourceType("name_tag_id", ResourceType.DataType.STRING);
 
             nameTag.resource(nameTagString);
             nameTag.resource(nameTagId);
-            graph.commit();
-        }
+            graph.admin().commitNoLogs();
 
-        return spy(new LoaderClient(graphContext.graph().getKeyspace(), Grakn.DEFAULT_URI));
+            return spy(new LoaderClient(graph.getKeyspace(), Grakn.DEFAULT_URI));
+        }
     }
 
     private InsertQuery query(){

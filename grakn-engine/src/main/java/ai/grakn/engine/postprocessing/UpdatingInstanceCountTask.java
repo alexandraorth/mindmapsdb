@@ -18,23 +18,17 @@
 
 package ai.grakn.engine.postprocessing;
 
-import ai.grakn.GraknGraph;
-import ai.grakn.GraknTxType;
 import ai.grakn.concept.TypeLabel;
-import ai.grakn.engine.GraknEngineConfig;
-import ai.grakn.engine.cache.EngineCacheProvider;
-import ai.grakn.engine.tasks.BackgroundTask;
 import ai.grakn.engine.tasks.TaskCheckpoint;
-import ai.grakn.factory.EngineGraknGraphFactory;
-import ai.grakn.graph.admin.ConceptCache;
-import ai.grakn.util.ErrorMessage;
-import mjson.Json;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import ai.grakn.engine.tasks.TaskConfiguration;
+import java.util.stream.Collectors;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+
+import static ai.grakn.util.REST.Request.COMMIT_LOG_COUNTING;
+import static ai.grakn.util.REST.Request.COMMIT_LOG_INSTANCE_COUNT;
+import static ai.grakn.util.REST.Request.COMMIT_LOG_TYPE_NAME;
 
 /**
  * <p>
@@ -47,71 +41,31 @@ import java.util.function.Consumer;
  *
  * @author fppt
  */
-public class UpdatingInstanceCountTask implements BackgroundTask {
-    private static final Logger LOG = LoggerFactory.getLogger(GraknEngineConfig.LOG_NAME_POSTPROCESSING_DEFAULT);
-    private ConceptCache cache = EngineCacheProvider.getCache();
+public class UpdatingInstanceCountTask extends AbstractLockingTask {
+
+    public static final String LOCK_KEY = "/updating-instance-count-lock";
 
     @Override
-    public boolean start(Consumer<TaskCheckpoint> saveCheckpoint, Json configuration) {
-        cache.getKeyspaces().parallelStream().forEach(this::updateCountsOnKeySpace);
+    protected String getLockingKey() {
+        return LOCK_KEY;
+    }
+
+    @Override
+    public boolean runLockingBackgroundTask(Consumer<TaskCheckpoint> saveCheckpoint, TaskConfiguration configuration) {
+        Map<TypeLabel, Long> jobs = getJobsFromConfiguration(configuration);
+
+        GraphMutators.runGraphMutationWithRetry(configuration, (graph) -> {
+            graph.admin().updateTypeShards(jobs);
+            graph.admin().commitNoLogs();
+        });
+
         return true;
     }
 
-    private void updateCountsOnKeySpace(String keyspace){
-        Map<TypeLabel, Long> jobs = new HashMap<>(cache.getInstanceCountJobs(keyspace));
-        //Clear the cache optimistically because we think we going to update successfully
-        jobs.forEach((key, value) -> cache.deleteJobInstanceCount(keyspace, key));
-
-        //TODO: All this boiler plate retry should be moved into a common graph mutating background task
-
-        boolean notDone = true;
-        int retry = 0;
-
-        while(notDone) {
-            notDone = false;
-            try (GraknGraph graknGraph = EngineGraknGraphFactory.getInstance().getGraph(keyspace, GraknTxType.WRITE)) {
-                graknGraph.admin().updateTypeCounts(jobs);
-                graknGraph.admin().commitNoLogs();
-            } catch (Throwable e) {
-                LOG.error("Unable to updating instance counts of graph [" + keyspace + "]", e);
-                if(retry > 10){
-                    LOG.error("Failed 10 times in a row to update the counts of the types on graph [" + keyspace + "] giving up");
-                    jobs.forEach((key, value) -> cache.addJobInstanceCount(keyspace, key, value));
-                } else {
-                    retry = performRetry(retry);
-                    notDone = true;
-                }
-            }
-        }
-    }
-
-    private static int performRetry(int retry){
-        retry ++;
-        double seed = 1.0 + (Math.random() * 5.0);
-        double waitTime = (retry * 2.0)  + seed;
-        LOG.debug(ErrorMessage.BACK_OFF_RETRY.getMessage(waitTime));
-
-        try {
-            Thread.sleep((long) Math.ceil(waitTime * 1000));
-        } catch (InterruptedException e1) {
-            LOG.error("Exception",e1);
-        }
-
-        return retry;
-    }
-
-    @Override
-    public boolean stop() {
-        throw new UnsupportedOperationException("Not yet implemented");
-    }
-
-    @Override
-    public void pause() {
-        throw new UnsupportedOperationException("Not yet implemented");
-    }
-
-    @Override
-    public boolean resume(Consumer<TaskCheckpoint> saveCheckpoint, TaskCheckpoint lastCheckpoint) {
-        throw new UnsupportedOperationException("Not yet implemented");
+    private Map<TypeLabel, Long> getJobsFromConfiguration(TaskConfiguration configuration){
+        return  configuration.json().at(COMMIT_LOG_COUNTING).asJsonList().stream()
+                .collect(Collectors.toMap(
+                        e -> TypeLabel.of(e.at(COMMIT_LOG_TYPE_NAME).asString()),
+                        e -> e.at(COMMIT_LOG_INSTANCE_COUNT).asLong()));
     }
 }

@@ -36,9 +36,6 @@ along with Grakn. If not, see <http://www.gnu.org/licenses/gpl.txt>. -->
                 <div class="dd-item">
                   <div class="left"><input type="checkbox" v-model="materialiseReasoner" :disabled="!useReasoner"></div><div :class="{'grey':!useReasoner}" :disabled="!useReasoner" class="right">Materialise inference</div>
                 </div>
-                <div class="dd-item">
-                  <button @click="materialiseAll()" class="btn materialise">Materialise All</button>
-                </div>
                 <div class="divide"></div>
                 <div class="dd-item">
                   <div class="left">Query Limit:</div><div class="right"><input v-model="queryLimit" type="text" class="form-control" maxlength="3" size="4"></div>
@@ -115,74 +112,62 @@ along with Grakn. If not, see <http://www.gnu.org/licenses/gpl.txt>. -->
     padding: 10px;
 }
 
-.btn.materialise{
-  padding: 7px;
-  margin:0;
-  line-height: 20px;
-  margin: auto;
-}
-
 </style>
 
 <script>
-import User from '../../js/User.js'
-import EngineClient from '../../js/EngineClient';
+import User from '../../js/User';
 
 export default {
-    name: "QuerySettings",
-    data() {
-        return {
-          useReasoner: User.getReasonerStatus(),
-          materialiseReasoner: User.getMaterialiseStatus(),
-          showSettings: false,
-          queryLimit: User.getQueryLimit(),
-          freezeNodes: User.getFreezeNodes(),
-        }
-    },
-    created() {
-      //Global key binding for locking/unlocking nodes
-      window.addEventListener('keyup', (e) => {
-          if(e.ctrlKey && e.keyCode === 76)
-          {
-            this.freezeNodes=!this.freezeNodes;
-          }
-      })
-    },
-    mounted: function() {
-        this.$nextTick(function() {
+  name: 'QuerySettings',
+  data() {
+    return {
+      useReasoner: User.getReasonerStatus(),
+      materialiseReasoner: User.getMaterialiseStatus(),
+      showSettings: false,
+      queryLimit: User.getQueryLimit(),
+      freezeNodes: User.getFreezeNodes(),
+    };
+  },
+  created() {
+      // Global key binding for locking/unlocking nodes
+    window.addEventListener('keyup', (e) => {
+      if (e.ctrlKey && e.keyCode === 76) {
+        this.freezeNodes = !this.freezeNodes;
+      }
+    });
+  },
+  mounted() {
+    this.$nextTick(() => {
 
-        });
+    });
+  },
+  watch: {
+    useReasoner(newVal, oldVal) {
+      User.setReasonerStatus(newVal);
+      if (!newVal) this.materialiseReasoner = false;
     },
-    watch: {
-        useReasoner: function(newVal, oldVal) {
-            User.setReasonerStatus(newVal);
-            if(!newVal) this.materialiseReasoner=false;
-        },
-        materialiseReasoner: function(newVal, oldVal) {
-            User.setMaterialiseStatus(newVal);
-        },
-        freezeNodes: function(newVal, oldVal) {
-            User.setFreezeNodes(newVal);
-            if(newVal){
-              visualiser.fixAllNodes();
-              toastr.success("All nodes LOCKED.");
-            }else{
-              visualiser.releaseAllNodes();
-              toastr.success("All nodes UNLOCKED.");
-            }
-        },
-        queryLimit: function(newVal, oldVal) {
-            User.setQueryLimit(newVal);
-            if(newVal.length>0) this.queryLimit=User.getQueryLimit();
-        }
+    materialiseReasoner(newVal, oldVal) {
+      User.setMaterialiseStatus(newVal);
     },
-    methods: {
-        closeSettings() {
-            this.showSettings = false;
-        },
-        materialiseAll(){
-          EngineClient.preMaterialiseAll();
-        }
+    freezeNodes(newVal, oldVal) {
+      User.setFreezeNodes(newVal);
+      if (newVal) {
+        visualiser.fixAllNodes();
+        toastr.success('All nodes LOCKED.');
+      } else {
+        visualiser.releaseAllNodes();
+        toastr.success('All nodes UNLOCKED.');
+      }
+    },
+    queryLimit(newVal, oldVal) {
+      User.setQueryLimit(newVal);
+      if (newVal.length > 0) this.queryLimit = User.getQueryLimit();
+    },
+  },
+  methods: {
+    closeSettings() {
+      this.showSettings = false;
     }
-}
+  },
+};
 </script>

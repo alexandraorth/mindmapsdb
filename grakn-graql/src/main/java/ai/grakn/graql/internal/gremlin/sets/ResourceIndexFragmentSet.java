@@ -20,7 +20,6 @@
 package ai.grakn.graql.internal.gremlin.sets;
 
 import ai.grakn.GraknGraph;
-import ai.grakn.concept.Type;
 import ai.grakn.concept.TypeLabel;
 import ai.grakn.graql.VarName;
 import ai.grakn.graql.internal.gremlin.EquivalentFragmentSet;
@@ -29,6 +28,9 @@ import ai.grakn.graql.internal.gremlin.fragment.Fragments;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.stream.Stream;
+
+import static ai.grakn.graql.internal.gremlin.sets.EquivalentFragmentSets.fragmentSetOfType;
+import static ai.grakn.graql.internal.gremlin.sets.EquivalentFragmentSets.hasDirectSubTypes;
 
 /**
  * A query can use a more-efficient resource index traversal when the following criteria are met:
@@ -53,27 +55,28 @@ class ResourceIndexFragmentSet extends EquivalentFragmentSet {
     static boolean applyResourceIndexOptimisation(
             Collection<EquivalentFragmentSet> fragmentSets, GraknGraph graph) {
 
-        ValueFragmentSet valueSet = anyEqualsValueFragment(fragmentSets);
-        if (valueSet == null) return false;
+        Iterable<ValueFragmentSet> valueSets = equalsValueFragments(fragmentSets)::iterator;
 
-        VarName resource = valueSet.resource();
+        for (ValueFragmentSet valueSet : valueSets) {
+            VarName resource = valueSet.resource();
 
-        IsaFragmentSet isaSet = typeInformationOf(resource, fragmentSets);
-        if (isaSet == null) return false;
+            IsaFragmentSet isaSet = typeInformationOf(resource, fragmentSets);
+            if (isaSet == null) continue;
 
-        VarName type = isaSet.type();
+            VarName type = isaSet.type();
 
-        LabelFragmentSet nameSet = typeLabelOf(type, fragmentSets);
-        if (nameSet == null) return false;
+            LabelFragmentSet nameSet = typeLabelOf(type, fragmentSets);
+            if (nameSet == null) continue;
 
-        TypeLabel typeLabel = nameSet.label();
+            TypeLabel typeLabel = nameSet.label();
 
-        Type typeConcept = graph.getType(typeLabel);
-        if (typeConcept != null && typeConcept.subTypes().size() > 1) return false;
+            if (!hasDirectSubTypes(graph, typeLabel)) {
+                optimise(fragmentSets, valueSet, isaSet, nameSet.label());
+                return true;
+            }
+        }
 
-        optimise(fragmentSets, valueSet, isaSet, nameSet.label());
-
-        return true;
+        return false;
     }
 
     private static void optimise(
@@ -91,12 +94,9 @@ class ResourceIndexFragmentSet extends EquivalentFragmentSet {
         fragmentSets.add(indexFragmentSet);
     }
 
-    @Nullable
-    private static ValueFragmentSet anyEqualsValueFragment(Collection<EquivalentFragmentSet> fragmentSets) {
+    private static Stream<ValueFragmentSet> equalsValueFragments(Collection<EquivalentFragmentSet> fragmentSets) {
         return fragmentSetOfType(ValueFragmentSet.class, fragmentSets)
-                .filter(valueFragmentSet -> valueFragmentSet.predicate().equalsValue().isPresent())
-                .findAny()
-                .orElse(null);
+                .filter(valueFragmentSet -> valueFragmentSet.predicate().equalsValue().isPresent());
     }
 
     @Nullable
@@ -112,10 +112,5 @@ class ResourceIndexFragmentSet extends EquivalentFragmentSet {
                 .filter(labelFragmentSet -> labelFragmentSet.type().equals(type))
                 .findAny()
                 .orElse(null);
-    }
-
-    private static <T extends EquivalentFragmentSet> Stream<T> fragmentSetOfType(
-            Class<T> clazz, Collection<EquivalentFragmentSet> fragmentSets) {
-        return fragmentSets.stream().filter(clazz::isInstance).map(clazz::cast);
     }
 }

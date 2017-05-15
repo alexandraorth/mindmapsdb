@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with Grakn. If not, see <http://www.gnu.org/licenses/gpl.txt>.
  */
+/* @flow */
+
 import User from './User';
 
 /*
@@ -29,33 +31,35 @@ export default {
      *  - cache
      * @param requestData
      */
-  request(requestData) {
+  request(requestData:Object) {
     return new Promise((resolve, reject) => {
-      const reasonerParam = (requestData.appendReasonerParams) ? `&reasoner=${User.getReasonerStatus()}` : '';
+      try {
+        const req = new XMLHttpRequest();
+        req.open(requestData.requestType || 'GET', requestData.url);
+        this.setHeaders(req, requestData);
 
-      const req = new XMLHttpRequest();
-      req.open(requestData.requestType || 'GET', requestData.url + reasonerParam);
-      this.setHeaders(req, requestData);
-
-      req.onload = function setOnLoad() {
-        if (req.status === 200) {
-          resolve(req.response);
-        } else {
-          reject(Error(req.response));
-        }
-      };
+        req.onload = function setOnLoad() {
+          if (req.status === 200) {
+            resolve(req.response);
+          } else {
+            reject(Error(req.response));
+          }
+        };
 
         // Handle network errors
-      req.onerror = function setOnError() {
-        reject(Error('Network Error'));
-      };
+        req.onerror = function setOnError() {
+          reject(Error('Network Error'));
+        };
 
     // Make the request
-      req.send(requestData.data);
+        req.send(requestData.data);
+      } catch (exception) {
+        reject(exception);
+      }
     });
   },
 
-  setHeaders(xhr, requestData) {
+  setHeaders(xhr:Object, requestData:Object) {
     const token = localStorage.getItem('id_token');
     if (token != null) {
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -64,7 +68,7 @@ export default {
     xhr.setRequestHeader('Accept', requestData.accepts || 'application/hal+json');
   },
 
-  sendInvite(credentials, callbackFn) {
+  sendInvite(credentials:Object, callbackFn:()=>mixed) {
     $.ajax({
       type: 'POST',
       contentType: 'application/json; charset=utf-8',
@@ -87,7 +91,7 @@ export default {
     });
   },
 
-  newSession(creds) {
+  newSession(creds:Object) {
     return this.request({
       url: '/auth/session/',
       data: JSON.stringify({
@@ -97,46 +101,38 @@ export default {
       requestType: 'POST',
     });
   },
-            /**
-             * Pre materialise
-             */
-  preMaterialiseAll() {
-    this.request({
-      url: `/graph/preMaterialiseAll?keyspace=${User.getCurrentKeySpace()}`,
-      contentType: 'application/text',
-    });
-  },
 
             /**
              * Send graql shell command to engine. Returns a string representing shell output.
              */
-  graqlShell(query) {
+  graqlShell(query:string) {
     return this.request({
-      url: `/graph/match?keyspace=${User.getCurrentKeySpace()}&query=${encodeURIComponent(query)}&reasoner=${User.getReasonerStatus()}&materialise=${User.getMaterialiseStatus()}`,
+      url: `/graph/graql?keyspace=${User.getCurrentKeySpace()}&query=${encodeURIComponent(query)}&infer=${User.getReasonerStatus()}&materialise=${User.getMaterialiseStatus()}`,
       contentType: 'application/text',
-      accepts: 'application/graql',
+      accepts: 'application/text',
     });
   },
             /**
              * Send graql query to Engine, returns an array of HAL objects.
              */
-  graqlHAL(query) {
+  graqlHAL(query:string) {
       // In match queries we are also attaching a limit for the embedded objects of the resulting nodes, this is not the query limit.
     return this.request({
-      url: `/graph/match?keyspace=${User.getCurrentKeySpace()}&query=${encodeURIComponent(query)}&reasoner=${User.getReasonerStatus()}&materialise=${User.getMaterialiseStatus()}&limit=${User.getQueryLimit()}`,
+      url: `/graph/graql?keyspace=${User.getCurrentKeySpace()}&query=${encodeURIComponent(query)}&infer=${User.getReasonerStatus()}&materialise=${User.getMaterialiseStatus()}&limitEmbedded=${User.getQueryLimit()}`,
     });
   },
             /**
              * Send graql query to Engine, returns an array of HAL objects.
              */
-  graqlAnalytics(query) {
+  graqlAnalytics(query:string) {
     return this.request({
-      url: `/graph/analytics?keyspace=${User.getCurrentKeySpace()}&query=${encodeURIComponent(query)}`,
+      url: `/graph/graql?keyspace=${User.getCurrentKeySpace()}&query=${encodeURIComponent(query)}&infer=false&materialise=false`,
+      accepts: 'application/text',
     });
   },
-            /**
-             * Get current engine configuration.
-             */
+  /**
+   * Get current engine configuration.
+   */
   getConfig() {
     return this.request({
       url: '/configuration',
@@ -145,9 +141,15 @@ export default {
             /**
              * Get meta ontology type instances.
              */
-  getMetaTypes(fn) {
+  getMetaTypes() {
     return this.request({
       url: `/graph/ontology?keyspace=${User.getCurrentKeySpace()}`,
+    });
+  },
+
+  getConceptTypes(id:string) {
+    return this.request({
+      url: `/dashboard/types/${id}?keyspace=${User.getCurrentKeySpace()}&limitEmbedded=${User.getQueryLimit()}`,
     });
   },
 
@@ -160,7 +162,7 @@ export default {
     });
   },
 
-  stopTask(uuid) {
+  stopTask(uuid:string) {
     return this.request({
       url: `/tasks/${uuid}/stop`,
       requestType: 'PUT',

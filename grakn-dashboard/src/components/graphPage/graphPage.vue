@@ -21,8 +21,8 @@ along with Grakn. If not, see <http://www.gnu.org/licenses/gpl.txt>.
 <div>
     <div class="graph-panel-body">
         <div v-on:contextmenu="customContextMenu" v-on:mousemove="updateRectangle" id="graph-div" ref="graph"></div>
-        <node-panel :showNodePanel="showNodePanel" :allNodeResources="allNodeResources" :allNodeOntologyProps="allNodeOntologyProps" :allNodeLinks="allNodeLinks" :selectedNodeLabel="selectedNodeLabel" v-on:graph-response="onGraphResponse" v-on:close-node-panel="showNodePanel=false"></node-panel>
-        <context-menu :showContextMenu="showContextMenu" :mouseEvent="mouseEvent" :graphOffsetTop="graphOffsetTop" v-on:type-query="emitInjectQuery" v-on:close-context="showContextMenu=false"></context-menu>
+        <node-panel :showNodePanel="showNodePanel" :allNodeResources="allNodeResources" :allNodeOntologyProps="allNodeOntologyProps" :node="selectedNodeObject" v-on:load-resource-owners="onLoadResourceOwners" v-on:close-node-panel="showNodePanel=false"></node-panel>
+        <context-menu :showContextMenu="showContextMenu" :mouseEvent="mouseEvent" :graphOffsetTop="graphOffsetTop" v-on:type-query="emitInjectQuery" v-on:close-context="showContextMenu=false" v-on:fetch-relations="fetchFilteredRelations"></context-menu>
         <node-tool-tip :showToolTip="showToolTip" :mouseEvent="mouseEvent" :graphOffsetTop="graphOffsetTop"></node-tool-tip>
         <footer-bar></footer-bar>
     </div>
@@ -42,9 +42,12 @@ along with Grakn. If not, see <http://www.gnu.org/licenses/gpl.txt>.
 </style>
 
 <script>
+/* @flow */
+
 // Modules
 import GraphPageState from '../../js/state/graphPageState';
 import CanvasHandler from './modules/CanvasHandler';
+import Visualiser from '../../js/visualiser/Visualiser';
 
 // Sub-components
 import NodePanel from './nodePanel.vue';
@@ -53,115 +56,101 @@ import ContextMenu from './contextMenu.vue';
 import NodeToolTip from './nodeToolTip.vue';
 
 export default {
-    name: 'GraphPage',
-    components: {
-        NodePanel,
-        FooterBar,
-        ContextMenu,
-        NodeToolTip,
+  name: 'GraphPage',
+  components: {
+    NodePanel,
+    FooterBar,
+    ContextMenu,
+    NodeToolTip,
+  },
+  data() {
+    return {
+      selectedNodeLabel: undefined,
+      codeMirror: {},
+      selectedNodeObject: undefined,
+      showNodePanel: false,
+      showContextMenu: false,
+      showToolTip: false,
+      graphOffsetTop: undefined,
+      mouseEvent: undefined,
+    };
+  },
+
+  created() {
+    // Register listened on State events
+    GraphPageState.eventHub.$on('clear-page', this.onClear);
+    // Events from canvasHandler
+    GraphPageState.eventHub.$on('show-node-panel', this.onShowNodePanel);
+    GraphPageState.eventHub.$on('hover-node', this.onHoverNode);
+    GraphPageState.eventHub.$on('blur-node', this.onBlurNode);
+    GraphPageState.eventHub.$on('close-context', () => { this.showContextMenu = false; });
+    GraphPageState.eventHub.$on('close-tooltip', () => { this.showToolTip = false; });
+  },
+  beforeDestroy() {
+    // Destroy listeners when component is destroyed - although it never gets destroyed for now. [keep-alive]
+    GraphPageState.eventHub.$off('clear-page', this.onClear);
+  },
+  mounted() {
+    this.$nextTick(function nextTickVisualiser() {
+      const graph = this.$refs.graph;
+      const graphDiv = document.getElementById('graph-div');
+      this.graphOffsetTop = graphDiv.getBoundingClientRect().top + document.body.scrollTop;
+
+      window.visualiser = new Visualiser(this.graphOffsetTop);
+      CanvasHandler.initialise(graph);
+    });
+  },
+
+  methods: {
+    fetchFilteredRelations(href) {
+      CanvasHandler.fetchFilteredRelations(href);
+      this.showContextMenu = false;
     },
-    data() {
-        return {
-            state: GraphPageState,
-            canvasHandler: {},
-            selectedNodeLabel: undefined,
-            codeMirror: {},
-            allNodeOntologyProps: {},
-            allNodeResources: {},
-            allNodeLinks: {},
-            showNodePanel: false,
-            showContextMenu: false,
-            showToolTip: false,
-            graphOffsetTop: undefined,
-            mouseEvent: undefined,
-        };
+    onShowNodePanel(nodeObject) {
+      this.selectedNodeObject = nodeObject;
+      this.showNodePanel = true;
     },
 
-    created() {
-        this.canvasHandler = new CanvasHandler(this.state);
-
-        // Register listened on State events
-        this.state.eventHub.$on('click-submit', query => this.canvasHandler.onClickSubmit(query));
-        this.state.eventHub.$on('load-ontology', type => this.canvasHandler.onLoadOntology(type));
-        this.state.eventHub.$on('clear-page', this.onClear);
-        //Events from canvasHandler
-        this.state.eventHub.$on('show-node-panel', this.onShowNodePanel);
-        this.state.eventHub.$on('hover-node', this.onHoverNode);
-        this.state.eventHub.$on('blur-node', this.onBlurNode);
-        this.state.eventHub.$on('close-context', () => this.showContextMenu = false);
-        this.state.eventHub.$on('close-tooltip', () => this.showToolTip = false);
-
-
-    },
-    beforeDestroy() {
-        // Destroy listeners when component is destroyed - although it never gets destroyed for now. [keep-alive]
-        this.state.eventHub.$off('click-submit', this.onClickSubmit);
-        this.state.eventHub.$off('load-ontology', this.onLoadOntology);
-        this.state.eventHub.$off('clear-page', this.onClear);
-    },
-    mounted() {
-        this.$nextTick(function nextTickVisualiser() {
-            const graph = this.$refs.graph;
-            // TODO: find a way to compute this without jQuery:
-            this.graphOffsetTop = $('#graph-div').offset().top;
-            this.canvasHandler.renderGraph(graph, this.graphOffsetTop);
-        });
+    customContextMenu(e) {
+      e.preventDefault();
+      if (!e.ctrlKey && !e.shiftKey) {
+        this.showContextMenu = true;
+        this.mouseEvent = e;
+      }
     },
 
-    methods: {
-        onShowNodePanel(ontologyProps, resources, label) {
-            this.allNodeOntologyProps = ontologyProps;
-            this.allNodeResources = resources;
-            this.selectedNodeLabel = label;
-            this.showNodePanel = true;
-        },
-
-        customContextMenu(e) {
-            e.preventDefault();
-            if (!e.ctrlKey && !e.shiftKey) {
-                this.showContextMenu = true;
-                this.mouseEvent = e;
-            }
-        },
-
-        onHoverNode(param) {
-            // Mouse event becomes position of hovered node
-            this.mouseEvent = param;
-            this.showToolTip = true;
-        },
-        onBlurNode() {
-            this.showToolTip = false;
-        },
-
-        updateRectangle(e) {
-            visualiser.updateRectangle(e.pageX, e.pageY - this.graphOffsetTop);
-        },
-
-
-        configureNode(nodeType, selectedProps) {
-            visualiser.setDisplayProperties(nodeType, selectedProps);
-        },
-
-        onClear() {
-            // Reset all interface elements to default.
-            this.showNodeLabelPanel = false;
-            this.showNodePanel = false;
-
-            // And clear the graph
-            this.canvasHandler.clearGraph();
-        },
-        ////// Emits and page elements related methods  ///////
-
-
-        emitInjectQuery(query) {
-            this.showContextMenu = false;
-            this.state.eventHub.$emit('inject-query', query);
-        },
-
-        onGraphResponse(resp) {
-            this.canvasHandler.onGraphResponse(resp);
-        }
-
+    onHoverNode(param) {
+      // Mouse event becomes position of hovered node
+      this.mouseEvent = param;
+      this.showToolTip = true;
     },
+    onBlurNode() {
+      this.showToolTip = false;
+    },
+
+    updateRectangle(e) {
+      visualiser.updateRectangle(e.pageX, e.pageY - this.graphOffsetTop);
+    },
+
+
+    configureNode(nodeType, selectedProps) {
+      visualiser.setDisplayProperties(nodeType, selectedProps);
+    },
+
+    onClear() {
+      this.showNodeLabelPanel = false;
+      this.showNodePanel = false;
+    },
+
+    emitInjectQuery(query) {
+      this.showContextMenu = false;
+      GraphPageState.eventHub.$emit('inject-query', query);
+    },
+
+    onLoadResourceOwners(resourceId) {
+      CanvasHandler.loadResourceOwners(resourceId);
+    },
+
+  },
 };
 </script>

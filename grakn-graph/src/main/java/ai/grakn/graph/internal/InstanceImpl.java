@@ -58,8 +58,22 @@ import java.util.stream.Collectors;
  *           For example {@link ai.grakn.concept.EntityType} or {@link RelationType}
  */
 abstract class InstanceImpl<T extends Instance, V extends Type> extends ConceptImpl<T> implements Instance {
-    private ComponentCache<TypeLabel> cachedInternalType = new ComponentCache<>(() -> TypeLabel.of(getProperty(Schema.ConceptProperty.TYPE)));
-    private ComponentCache<V> cachedType = new ComponentCache<>(() -> this.<V>getOutgoingNeighbours(Schema.EdgeLabel.ISA).findFirst().orElse(null));
+    private ConceptCache<TypeLabel> cachedInternalType = new ConceptCache<>(() -> {
+        int typeId = getProperty(Schema.ConceptProperty.INSTANCE_TYPE_ID);
+        Type type = getGraknGraph().getConcept(Schema.ConceptProperty.TYPE_ID, typeId);
+        return type.getLabel();
+    });
+
+    private ConceptCache<V> cachedType = new ConceptCache<>(() -> {
+        ConceptImpl<?> currentType = (ConceptImpl) this.getOutgoingNeighbours(Schema.EdgeLabel.ISA).findFirst().orElse(null);
+
+        while (currentType.isShard()){
+            currentType = (ConceptImpl) currentType.getOutgoingNeighbours(Schema.EdgeLabel.SHARD).findFirst().orElse(null);
+        }
+
+        //noinspection unchecked
+        return (V) currentType;
+    });
 
     InstanceImpl(AbstractGraknGraph graknGraph, Vertex v) {
         super(graknGraph, v);
@@ -77,18 +91,18 @@ abstract class InstanceImpl<T extends Instance, V extends Type> extends ConceptI
     public void delete() {
         InstanceImpl<?, ?> parent = this;
         Set<CastingImpl> castings = parent.castings();
-        getGraknGraph().getConceptLog().removedInstance(type().getLabel());
+        getGraknGraph().getTxCache().removedInstance(type().getLabel());
         deleteNode();
         for(CastingImpl casting: castings){
             Set<Relation> relations = casting.getRelations();
-            getGraknGraph().getConceptLog().trackConceptForValidation(casting);
+            getGraknGraph().getTxCache().trackConceptForValidation(casting);
 
             for(Relation relation : relations) {
                 if(relation.type().isImplicit()){//For now implicit relations die
                     relation.delete();
                 } else {
                     RelationImpl rel = (RelationImpl) relation;
-                    getGraknGraph().getConceptLog().trackConceptForValidation(rel);
+                    getGraknGraph().getTxCache().trackConceptForValidation(rel);
                     rel.cleanUp();
                 }
             }
@@ -236,9 +250,8 @@ abstract class InstanceImpl<T extends Instance, V extends Type> extends ConceptI
      */
     protected T type(V type) {
         if(type != null){
-            setInternalType(type.getLabel());
             putEdge(type, Schema.EdgeLabel.ISA);
-            cachedType.set(type);
+            setInternalType(type());
         }
         return getThis();
     }
@@ -248,9 +261,9 @@ abstract class InstanceImpl<T extends Instance, V extends Type> extends ConceptI
      * @param type The type of this concept
      * @return The concept itself casted to the correct interface
      */
-    private T setInternalType(TypeLabel type){
-        cachedInternalType.set(type);
-        return setProperty(Schema.ConceptProperty.TYPE, type.getValue());
+    private T setInternalType(Type type){
+        cachedInternalType.set(type.getLabel());
+        return setProperty(Schema.ConceptProperty.INSTANCE_TYPE_ID, type.getTypeId());
     }
 
     /**

@@ -29,12 +29,12 @@ import ai.grakn.graql.internal.reasoner.query.QueryAnswers;
 import java.util.stream.Stream;
 
 import static ai.grakn.graql.Graql.var;
-import static ai.grakn.graql.internal.reasoner.Utility.capture;
+import static ai.grakn.graql.internal.reasoner.ReasonerUtils.capture;
 
 /**
  *
  * <p>
- * Implementation of atom corresponding to graql NotEquals property.
+ * Implementation of atom corresponding to {@link NeqProperty}.
  * </p>
  *
  * @author Kasper Piskorski

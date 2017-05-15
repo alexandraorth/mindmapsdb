@@ -24,14 +24,25 @@ import ai.grakn.graql.admin.Atomic;
 import ai.grakn.graql.admin.ReasonerQuery;
 import ai.grakn.graql.admin.VarAdmin;
 import ai.grakn.graql.internal.pattern.property.IsaProperty;
+import ai.grakn.graql.internal.reasoner.atom.Atom;
+import ai.grakn.graql.internal.reasoner.atom.ResolutionStrategy;
 import ai.grakn.graql.internal.reasoner.atom.predicate.IdPredicate;
 import ai.grakn.graql.internal.reasoner.query.ReasonerAtomicQuery;
 import ai.grakn.graql.internal.reasoner.query.ReasonerQueryImpl;
+import ai.grakn.graql.internal.reasoner.rule.InferenceRule;
+import java.util.stream.Collectors;
 
 /**
  *
  * <p>
- * Atom implementation defining type atoms of the type $varName {isa|sub|plays|has|has-scope} $valueVariable)
+ * Atom implementation defining type atoms of the general form: $varName {isa|sub|plays|relates|has|has-scope} $valueVariable).
+ * These correspond to the following respective graql properties:
+ * {@link IsaProperty},
+ * {@link ai.grakn.graql.internal.pattern.property.SubProperty},
+ * {@link ai.grakn.graql.internal.pattern.property.PlaysProperty}
+ * {@link ai.grakn.graql.internal.pattern.property.RelatesProperty}
+ * {@link ai.grakn.graql.internal.pattern.property.HasResourceTypeProperty}
+ * {@link ai.grakn.graql.internal.pattern.property.HasScopeProperty}
  * </p>
  *
  * @author Kasper Piskorski
@@ -42,6 +53,12 @@ public class TypeAtom extends Binary{
     public TypeAtom(VarAdmin pattern, ReasonerQuery par) { this(pattern, null, par);}
     public TypeAtom(VarAdmin pattern, IdPredicate p, ReasonerQuery par) { super(pattern, p, par);}
     protected TypeAtom(TypeAtom a) { super(a);}
+
+    @Override
+    public String toString(){
+        String typeString = (getType() != null? getType().getLabel() : "") + "(" + getVarName() + ")";
+        return typeString + getIdPredicates().stream().map(IdPredicate::toString).collect(Collectors.joining(""));
+    }
 
     @Override
     protected ConceptId extractTypeId() {
@@ -68,12 +85,41 @@ public class TypeAtom extends Binary{
     public boolean isType(){ return true;}
 
     @Override
+    public boolean isRuleApplicable(InferenceRule child) {
+        Atom ruleAtom = child.getHead().getAtom();
+        return this.getType() != null
+                //ensure not ontological atom query
+                && getPattern().asVar().hasProperty(IsaProperty.class)
+                && this.getType().subTypes().contains(ruleAtom.getType());
+    }
+
+    @Override
     public boolean isSelectable() {
         ReasonerQueryImpl parent = (ReasonerQueryImpl) getParentQuery();
-        return isRuleResolvable()
-                || getPredicate() == null
-                || (parent.getIdPredicate(getVarName()) != null && getPredicate() != null)
-                || (!(parent instanceof ReasonerAtomicQuery) && parent.findNextJoinable(this) == null);
+        return getPredicate() == null
+                //type atom corresponding to relation or resource
+                || getType() != null && (getType().isResourceType() ||getType().isRelationType())
+                //disjoint atom
+                || (!(parent instanceof ReasonerAtomicQuery) && parent.findNextJoinable(this) == null)
+                || isRuleResolvable();
+    }
+
+    @Override
+    public boolean isAllowedToFormRuleHead(){
+        return getType() != null;
+    }
+
+    @Override
+    public boolean requiresMaterialisation() {
+        return isUserDefinedName() && getType() != null && getType().isRelationType();
+    }
+
+    @Override
+    public int resolutionPriority(){
+        int priority = super.resolutionPriority();
+        priority += ResolutionStrategy.IS_TYPE_ATOM;
+        priority += getType() == null? ResolutionStrategy.NON_SPECIFIC_TYPE_ATOM : 0;
+        return priority;
     }
 
     @Override

@@ -34,7 +34,7 @@ import ai.grakn.util.ErrorMessage;
 /**
  *
  * <p>
- * Predicate implementation specialising it to be an id predicate. Corresponds to graql IdProperty.
+ * Predicate implementation specialising it to be an id predicate. Corresponds to {@link IdProperty}.
  * </p>
  *
  * @author Kasper Piskorski
@@ -66,6 +66,11 @@ public class IdPredicate extends Predicate<ConceptId>{
         Type type = graph.getType(prop.getLabelValue());
         if (type == null) throw new IllegalArgumentException(ErrorMessage.CANNOT_CREATE_IDPREDICATE.getMessage(prop.getLabelValue()));
         return Graql.var(varName).id(type.getId()).admin();
+    }
+
+    @Override
+    public String toString(){
+        return "[" + getVarName() + "/" + getPredicateValue() + "]";
     }
 
     @Override

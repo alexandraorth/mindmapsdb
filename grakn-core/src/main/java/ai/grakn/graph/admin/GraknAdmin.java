@@ -34,6 +34,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -125,26 +126,20 @@ public interface GraknAdmin {
     //------------------------------------- Admin Specific Operations ----------------------------------
 
     /**
-     * Commits the graph and adds concepts for post processing directly to the cache bypassing the REST API.
+     * Converts a Type Label into a type Id for this specific graph. Mapping labels to ids will differ between graphs
+     * so be sure to use the correct graph when performing the mapping.
      *
-     * @param conceptCache The concept Cache to store concepts in for processing later
-     * @throws GraknValidationException when the graph does not conform to the object concept
+     * @param label The label to be converted to the id
+     * @return The matching type id or -1 if no such type exists
      */
-    void commit(ConceptCache conceptCache) throws GraknValidationException;
-
-    /**
-     * Clears the graph and empties the provided cache.
-     *
-     * @param conceptCache The concept Cache to store concepts in for processing later
-     */
-    void clear(ConceptCache conceptCache);
+    Integer convertToId(TypeLabel label);
 
     /**
      * Commits to the graph without submitting any commit logs.
-     *
+     * @return the commit log that would have been submitted if it is needed.
      * @throws GraknValidationException when the graph does not conform to the object concept
      */
-    void commitNoLogs() throws GraknValidationException;
+    Optional<String> commitNoLogs() throws GraknValidationException;
 
     /**
      * Merges the provided duplicate castings.
@@ -167,7 +162,7 @@ public interface GraknAdmin {
      *
      * @param typeCounts The types and the changes to put on their counts
      */
-    void updateTypeCounts(Map<TypeLabel, Long> typeCounts);
+    void updateTypeShards(Map<TypeLabel, Long> typeCounts);
 
     /**
      *
@@ -175,5 +170,10 @@ public interface GraknAdmin {
      * @param value The value of the concept
      * @return A concept with the matching key and value
      */
-    <T extends Concept> T  getConcept(Schema.ConceptProperty key, String value);
+    <T extends Concept> T  getConcept(Schema.ConceptProperty key, Object value);
+
+    /**
+     * Closes the root session this graph stems from. This will automatically rollback any pending transactions.
+     */
+    void closeSession();
 }

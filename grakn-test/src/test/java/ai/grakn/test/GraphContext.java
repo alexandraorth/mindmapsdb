@@ -20,8 +20,7 @@ package ai.grakn.test;
 
 import ai.grakn.GraknGraph;
 import ai.grakn.GraknTxType;
-import ai.grakn.engine.cache.EngineCacheStandAlone;
-import ai.grakn.factory.EngineGraknGraphFactory;
+import ai.grakn.engine.factory.EngineGraknGraphFactory;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -43,6 +42,7 @@ public class GraphContext implements TestRule {
     private String keyspace;
     private Consumer<GraknGraph> preLoad;
     private String[] files;
+    private boolean assumption;
 
     private GraphContext(Consumer<GraknGraph> build, String[] files){
         this.preLoad = build;
@@ -62,6 +62,11 @@ public class GraphContext implements TestRule {
         return new GraphContext(null, filesToLoad);
     }
 
+    public GraphContext assumeTrue(boolean bool){
+        this.assumption = bool;
+        return this;
+    }
+
     public GraknGraph graph(){
         if(graph.isClosed()){
             graph = getEngineGraph();
@@ -71,7 +76,8 @@ public class GraphContext implements TestRule {
 
     public void rollback() {
         if (usingTinker()) {
-            graph.admin().clear(EngineCacheStandAlone.getCache());
+            graph.clear();
+            graph.admin().commitNoLogs();
             loadGraph();
         } else if (!graph.isClosed()) {
             graph.close();
@@ -111,6 +117,8 @@ public class GraphContext implements TestRule {
         return new Statement() {
             @Override
             public void evaluate() throws Throwable {
+                org.junit.Assume.assumeTrue(assumption);
+                System.out.println("after assume");
                 ensureCassandraRunning();
 
                 loadGraph();

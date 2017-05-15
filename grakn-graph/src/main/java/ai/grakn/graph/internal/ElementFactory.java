@@ -63,16 +63,16 @@ final class ElementFactory {
     private <X extends ConceptImpl> X getOrBuildConcept(Vertex v, Function<Vertex, X> conceptBuilder){
         ConceptId conceptId = ConceptId.of(v.id().toString());
 
-        if(!graknGraph.getConceptLog().isConceptCached(conceptId)){
+        if(!graknGraph.getTxCache().isConceptCached(conceptId)){
             X newConcept = conceptBuilder.apply(v);
-            graknGraph.getConceptLog().cacheConcept(newConcept);
+            graknGraph.getTxCache().cacheConcept(newConcept);
         }
 
-        X concept = graknGraph.getConceptLog().getCachedConcept(conceptId);
+        X concept = graknGraph.getTxCache().getCachedConcept(conceptId);
 
         //Only track concepts which have been modified.
         if(graknGraph.isConceptModified(concept)) {
-            graknGraph.getConceptLog().trackConceptForValidation(concept);
+            graknGraph.getTxCache().trackConceptForValidation(concept);
         }
 
         return concept;
@@ -147,7 +147,7 @@ final class ElementFactory {
         }
 
         ConceptId conceptId = ConceptId.of(v.id());
-        if(!graknGraph.getConceptLog().isConceptCached(conceptId)){
+        if(!graknGraph.getTxCache().isConceptCached(conceptId)){
             ConceptImpl concept;
             switch (type) {
                 case RELATION:
@@ -186,10 +186,10 @@ final class ElementFactory {
                 default:
                     throw new RuntimeException("Unknown base type [" + v.label() + "]");
             }
-            graknGraph.getConceptLog().cacheConcept(concept);
+            graknGraph.getTxCache().cacheConcept(concept);
         }
 
-        return graknGraph.getConceptLog().getCachedConcept(conceptId);
+        return graknGraph.getTxCache().getCachedConcept(conceptId);
     }
 
     //TODO: Simplify this if it does not make a difference to large loading
@@ -198,9 +198,10 @@ final class ElementFactory {
             return Schema.BaseType.valueOf(vertex.label());
         } catch (IllegalArgumentException e){
             //Base type appears to be invalid. Let's try getting the type via the isa edge
-            Iterator<Edge> iterator = vertex.edges(Direction.OUT, Schema.EdgeLabel.ISA.getLabel());
+            Iterator<Edge> iterator = vertex.edges(Direction.OUT, Schema.EdgeLabel.SHARD.getLabel());
             if(iterator.hasNext()){
-                Edge typeVertex = iterator.next();
+                Vertex shardVertex = iterator.next().inVertex();
+                Vertex typeVertex = shardVertex.edges(Direction.OUT, Schema.EdgeLabel.ISA.getLabel()).next().inVertex();
                 String label = typeVertex.label();
                 if(label.equals(Schema.BaseType.ENTITY_TYPE.name())) return Schema.BaseType.ENTITY;
                 if(label.equals(Schema.BaseType.ROLE_TYPE.name())) return Schema.BaseType.CASTING;

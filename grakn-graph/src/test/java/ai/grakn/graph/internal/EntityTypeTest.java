@@ -38,9 +38,11 @@ import java.util.Set;
 
 import static ai.grakn.util.ErrorMessage.CANNOT_BE_KEY_AND_RESOURCE;
 import static ai.grakn.util.ErrorMessage.CANNOT_DELETE;
+import static ai.grakn.util.ErrorMessage.ID_ALREADY_TAKEN;
 import static ai.grakn.util.ErrorMessage.META_TYPE_IMMUTABLE;
 import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -64,6 +66,14 @@ public class EntityTypeTest extends GraphTestBase{
         middle1.superType(top);
         middle2.superType(top);
         middle3.superType(top);
+    }
+
+    @Test
+    public void whenCreatingEntityTypeUsingLabelTakenByAnotherType_Throw(){
+        RoleType original = graknGraph.putRoleType("Role Type");
+        expectedException.expect(RuntimeException.class);
+        expectedException.expectMessage(ID_ALREADY_TAKEN.getMessage(original.getLabel(), original.toString()));
+        graknGraph.putEntityType(original.getLabel());
     }
 
     @Test
@@ -453,6 +463,23 @@ public class EntityTypeTest extends GraphTestBase{
         expectedException.expectMessage(CANNOT_BE_KEY_AND_RESOURCE.getMessage(entityType.getLabel(), resourceType.getLabel()));
 
         entityType.resource(resourceType);
+    }
+
+    @Test
+    public void whenCreatingEntityType_EnsureItHasAShard(){
+        EntityTypeImpl entityType = (EntityTypeImpl) graknGraph.putEntityType("EntityType");
+        assertThat(entityType.shards(), not(empty()));
+        assertEquals(entityType.shards().iterator().next(), entityType.currentShard());
+    }
+
+    @Test
+    public void whenAddingInstanceToType_EnsureIsaEdgeIsPlacedOnShard(){
+        EntityTypeImpl entityType = (EntityTypeImpl) graknGraph.putEntityType("EntityType");
+        EntityTypeImpl shard = (EntityTypeImpl) entityType.currentShard();
+        Entity e1 = entityType.addEntity();
+
+        assertFalse("The isa edge was places on the type rather than the shard", entityType.getIncomingNeighbours(Schema.EdgeLabel.ISA).iterator().hasNext());
+        assertEquals(e1, shard.getIncomingNeighbours(Schema.EdgeLabel.ISA).findAny().get());
     }
 
 }

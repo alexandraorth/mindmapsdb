@@ -34,7 +34,7 @@ import ai.grakn.graql.admin.RelationPlayer;
 import ai.grakn.graql.admin.UniqueVarProperty;
 import ai.grakn.graql.admin.VarAdmin;
 import ai.grakn.graql.internal.gremlin.EquivalentFragmentSet;
-import ai.grakn.graql.internal.gremlin.ShortcutTraversal;
+import ai.grakn.graql.internal.gremlin.sets.EquivalentFragmentSets;
 import ai.grakn.graql.internal.query.InsertQueryExecutor;
 import ai.grakn.graql.internal.reasoner.atom.predicate.IdPredicate;
 import ai.grakn.graql.internal.util.CommonUtil;
@@ -51,10 +51,9 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 import static ai.grakn.graql.internal.gremlin.sets.EquivalentFragmentSets.casting;
-import static ai.grakn.graql.internal.gremlin.sets.EquivalentFragmentSets.distinctCasting;
 import static ai.grakn.graql.internal.gremlin.sets.EquivalentFragmentSets.isaCastings;
 import static ai.grakn.graql.internal.gremlin.sets.EquivalentFragmentSets.rolePlayer;
-import static ai.grakn.graql.internal.reasoner.Utility.getUserDefinedIdPredicate;
+import static ai.grakn.graql.internal.reasoner.ReasonerUtils.getUserDefinedIdPredicate;
 import static ai.grakn.graql.internal.util.CommonUtil.toImmutableSet;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
@@ -87,26 +86,6 @@ public class RelationProperty extends AbstractVarProperty implements UniqueVarPr
     }
 
     @Override
-    public void modifyShortcutTraversal(ShortcutTraversal shortcutTraversal) {
-        relationPlayers.forEach(relationPlayer -> {
-            Optional<VarAdmin> roleType = relationPlayer.getRoleType();
-
-            if (roleType.isPresent()) {
-                Optional<TypeLabel> roleTypeLabel = roleType.get().getTypeLabel();
-
-                if (roleTypeLabel.isPresent()) {
-                    shortcutTraversal.addRel(roleTypeLabel.get(), relationPlayer.getRolePlayer().getVarName());
-                } else {
-                    shortcutTraversal.setInvalid();
-                }
-
-            } else {
-                shortcutTraversal.addRel(relationPlayer.getRolePlayer().getVarName());
-            }
-        });
-    }
-
-    @Override
     public Collection<EquivalentFragmentSet> match(VarName start) {
         Collection<VarName> castingNames = new HashSet<>();
 
@@ -121,7 +100,7 @@ public class RelationProperty extends AbstractVarProperty implements UniqueVarPr
         ImmutableSet<EquivalentFragmentSet> distinctCastingTraversals = castingNames.stream().flatMap(
                 castingName -> castingNames.stream()
                         .filter(otherName -> !otherName.equals(castingName))
-                        .map(otherName -> distinctCasting(castingName, otherName))
+                        .map(otherName -> EquivalentFragmentSets.neq(castingName, otherName))
         ).collect(toImmutableSet());
 
         return Sets.union(traversals, distinctCastingTraversals);

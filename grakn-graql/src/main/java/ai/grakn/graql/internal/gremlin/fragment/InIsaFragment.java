@@ -18,11 +18,15 @@
 
 package ai.grakn.graql.internal.gremlin.fragment;
 
+import ai.grakn.GraknGraph;
 import ai.grakn.graql.VarName;
 import ai.grakn.util.Schema;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
+
+import static ai.grakn.util.Schema.EdgeLabel.ISA;
+import static ai.grakn.util.Schema.EdgeLabel.SHARD;
 
 class InIsaFragment extends AbstractFragment {
 
@@ -34,8 +38,8 @@ class InIsaFragment extends AbstractFragment {
     }
 
     @Override
-    public void applyTraversal(GraphTraversal<Vertex, Vertex> traversal) {
-        Fragments.inSubs(traversal).in(Schema.EdgeLabel.ISA.getLabel());
+    public void applyTraversal(GraphTraversal<Vertex, Vertex> traversal, GraknGraph graph) {
+        Fragments.inSubs(traversal).in(SHARD.getLabel()).in(ISA.getLabel());
         if (!allowCastings) {
             // Make sure we never get any castings
             traversal.not(__.hasLabel(Schema.BaseType.CASTING.name()));

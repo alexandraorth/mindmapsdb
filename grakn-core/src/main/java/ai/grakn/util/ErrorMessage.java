@@ -53,12 +53,14 @@ public enum ErrorMessage {
     ROLE_TYPE_ERROR("The role type [%s] cannot play itself"),
     BACKEND_EXCEPTION("Unknown Backend Exception."),
     GRAPH_CLOSED("The Graph for keyspace [%s] is closed"),
+    SESSION_CLOSED("The session for graph [%s] was closed"),
     GRAPH_CLOSED_ON_ACTION("The transaction was %s and closed graph [%s]. Use the session to get a new transaction for the graph."),
     TRANSACTIONS_OPEN("Closed session on graph [%s] with [%s] open transactions"),
     LOCKING_EXCEPTION("Internal locking exception. Please clear the transaction and try again."),
     CANNOT_BE_KEY_AND_RESOURCE("The Type [%s] cannot have the Resource Type [%s] as a key and as a resource"),
     TRANSACTION_ALREADY_OPEN("A transaction is already open on this thread for graph [%s]"),
     TRANSACTION_READ_ONLY("This transaction on graph [%s] is read only"),
+    CONCEPT_HAS_NO_SHARD("Concept [%s] does not have any shard"),
 
     //--------------------------------------------- Validation Errors
     VALIDATION("A structural validation error has occurred. Please correct the [`%s`] errors found. \n"),
@@ -152,6 +154,9 @@ public enum ErrorMessage {
 
     NO_ANALYTICS_METHOD("No compute method exists with the name [%s]"),
 
+    //Templating
+    TEMPLATE_MISSING_KEY("Key [%s] not present in data: [%s]"),
+
     //--------------------------------------------- Engine Errors -----------------------------------------------
     NO_CONFIG_FILE("Cannot find config file [%s]"),
     NO_LOG_CONFIG_FILE("It was not possible to find the Logback configuration file [%s]. Default configurations for logging will be used."),
@@ -165,12 +170,16 @@ public enum ErrorMessage {
 
     //Server Errors
     UNAVAILABLE_TASK_CLASS("Could not find task class [%s]"),
-    MISSING_MANDATORY_PARAMETERS("Missing mandatory parameters"),
+    MISSING_MANDATORY_REQUEST_PARAMETERS("Missing mandatory query parameter [%s]"),
+    MISSING_REQUEST_BODY("Empty body- it should contain the Graql query to be executed."),
+    UNSUPPORTED_CONTENT_TYPE("Unsupported Content-Type [%s] requested"),
+    INVALID_CONTENT_TYPE("Invalid combination of query [%s] and content type [%s]"),
+    EXPLAIN_ONLY_MATCH("Cannot get explanation for non-match query, given: [%s]"),
 
     //Post processing Errors
     CONCEPT_POSTPROCESSING("Concept [%s] of type [%s] does not have any post-processing steps"),
-    POSTPROCESSING_ERROR("Unexpected error during post processing on Job [%s] fix due to [%s]"),
-    UNABLE_TO_ANALYSE_CONCEPT("Unable to analyse concepts [%s] part of job [%s] due to several repeating errors"),
+    GRAPH_MUTATION_ERROR("Unexpected error during graph mutation due to [%s]"),
+    UNABLE_TO_MUTATE_GRAPH("Unable to mutate graph [%s] due to several repeating errors"),
     BACK_OFF_RETRY("Unexpected failure performing backoff and retry of [%s]S"),
     //Distributed loading Errors
     ERROR_IN_DISTRIBUTED_TRANSACTION("Error while sending transaction to host. Message:[%s] \n Transaction string: [%s] "),
@@ -181,6 +190,7 @@ public enum ErrorMessage {
     //--------------------------------------------- Reasoner Errors -----------------------------------------------
     GRAPH_MISSING("Provided query does not have an associated graph"),
     NON_HORN_RULE("The specified rule [%s] is not a Horn rule"),
+    DISALLOWED_ATOM_IN_RULE_HEAD("Atom [%s] is not allowed to form a head of the rule [%s]."),
     HEAD_ROLES_MISSING("The specified rule [%s] is ambiguous - it does not specify all role types in the head."),
     PARENT_MISSING("Attempted operation on atom %s that does not have a parent"),
     PATTERN_NOT_VAR("The pattern [%s] is not a var"),
@@ -189,7 +199,7 @@ public enum ErrorMessage {
     NO_VAL_IN_RELATION("Attempted to return value from a relation atom"),
     NO_TYPE_CONSTRAINTS("Attempted to return constraints from non-relation atom"),
     LOOP_CLAUSE("Unable to find suitable starting atom (loop?)"),
-    NON_ATOMIC_QUERY("Addressed query is not atomic [%s]"),
+    NON_ATOMIC_QUERY("Addressed query is not atomic: [%s]."),
     MULTI_VALUE_VAR("Multi value variable found [%s] on query construction"),
     NO_ATOMS_SELECTED("No atoms were selected from query [%s]"),
     MATERIALIZATION_ERROR("Not enough information available to materialize query [%s]"),

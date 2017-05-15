@@ -36,6 +36,8 @@ import ai.grakn.graql.MatchQuery;
 import ai.grakn.graql.Pattern;
 import ai.grakn.graql.QueryBuilder;
 import ai.grakn.graql.Var;
+import ai.grakn.graql.VarName;
+import ai.grakn.graql.admin.Answer;
 import ai.grakn.test.GraphContext;
 import ai.grakn.util.ErrorMessage;
 import ai.grakn.util.Schema;
@@ -51,9 +53,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.time.LocalDateTime;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -62,12 +64,12 @@ import static ai.grakn.graql.Graql.label;
 import static ai.grakn.graql.Graql.var;
 import static ai.grakn.test.GraknTestEnv.usingTinker;
 import static ai.grakn.util.ErrorMessage.INSERT_UNSUPPORTED_PROPERTY;
-import static ai.grakn.util.Schema.ImplicitType.KEY;
-import static ai.grakn.util.Schema.ImplicitType.KEY_OWNER;
-import static ai.grakn.util.Schema.ImplicitType.KEY_VALUE;
 import static ai.grakn.util.Schema.ImplicitType.HAS;
 import static ai.grakn.util.Schema.ImplicitType.HAS_OWNER;
 import static ai.grakn.util.Schema.ImplicitType.HAS_VALUE;
+import static ai.grakn.util.Schema.ImplicitType.KEY;
+import static ai.grakn.util.Schema.ImplicitType.KEY_OWNER;
+import static ai.grakn.util.Schema.ImplicitType.KEY_VALUE;
 import static ai.grakn.util.Schema.MetaSchema.RULE;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -113,7 +115,7 @@ public class InsertQueryTest {
 
     @Test
     public void testInsertValue() {
-        assertInsert(var("x").val(12109038210380L).isa("release-date"));
+        assertInsert(var("x").val(LocalDateTime.of(1992, 10, 7, 13, 14, 15)).isa("release-date"));
     }
 
     @Test
@@ -318,10 +320,10 @@ public class InsertQueryTest {
                 var("z").has("name", "xyz").isa("language")
         );
 
-        Set<Map<String, Concept>> results = insert.stream().collect(Collectors.toSet());
+        Set<Answer> results = insert.stream().collect(Collectors.toSet());
         assertEquals(1, results.size());
-        Map<String, Concept> result = results.iterator().next();
-        assertEquals(ImmutableSet.of("x", "z"), result.keySet());
+        Answer result = results.iterator().next();
+        assertEquals(ImmutableSet.of(VarName.of("x"), VarName.of("z")), result.keySet());
         assertThat(result.values(), Matchers.everyItem(notNullValue(Concept.class)));
     }
 
@@ -335,13 +337,13 @@ public class InsertQueryTest {
         assertTrue(qb.match(language2).ask().execute());
 
         InsertQuery query = qb.match(var("x").isa("language")).insert(var("x").has("name", "HELLO"));
-        Iterator<Map<String, Concept>> results = query.iterator();
+        Iterator<Answer> results = query.iterator();
 
         assertFalse(qb.match(var().isa("language").has("name", "123").has("name", "HELLO")).ask().execute());
         assertFalse(qb.match(var().isa("language").has("name", "456").has("name", "HELLO")).ask().execute());
 
-        Map<String, Concept> result1 = results.next();
-        assertEquals(ImmutableSet.of("x"), result1.keySet());
+        Answer result1 = results.next();
+        assertEquals(ImmutableSet.of(VarName.of("x")), result1.keySet());
 
         AskQuery query123 = qb.match(var().isa("language").has("name", "123").has("name", "HELLO")).ask();
         AskQuery query456 = qb.match(var().isa("language").has("name", "456").has("name", "HELLO")).ask();
@@ -356,8 +358,8 @@ public class InsertQueryTest {
         assertTrue("A match insert was not executed correctly for only one match", oneExists);
 
         //Check that both are inserted correctly
-        Map<String, Concept> result2 = results.next();
-        assertEquals(ImmutableSet.of("x"), result1.keySet());
+        Answer result2 = results.next();
+        assertEquals(ImmutableSet.of(VarName.of("x")), result1.keySet());
         assertTrue(qb.match(var().isa("language").has("name", "123").has("name", "HELLO")).ask().execute());
         assertTrue(qb.match(var().isa("language").has("name", "456").has("name", "HELLO")).ask().execute());
         assertFalse(results.hasNext());
@@ -593,10 +595,10 @@ public class InsertQueryTest {
     public void testInsertExecuteResult() {
         InsertQuery query = qb.insert(var("x").isa("movie"));
 
-        List<Map<String, Concept>> results = query.execute();
+        List<Answer> results = query.execute();
         assertEquals(1, results.size());
-        Map<String, Concept> result = results.get(0);
-        assertEquals(Sets.newHashSet("x"), result.keySet());
+        Answer result = results.get(0);
+        assertEquals(Sets.newHashSet(VarName.of("x")), result.keySet());
         Entity x = result.get("x").asEntity();
         assertEquals("movie", x.type().getLabel().getValue());
     }
@@ -711,8 +713,8 @@ public class InsertQueryTest {
     @Test
     public void testInsertInstanceWithoutType() {
         exception.expect(IllegalStateException.class);
-        exception.expectMessage(allOf(containsString("123"), containsString("isa")));
-        qb.insert(var().id(ConceptId.of("123")).has("name", "Bob")).execute();
+        exception.expectMessage(allOf(containsString("isa")));
+        qb.insert(var().has("name", "Bob")).execute();
     }
 
     @Test
@@ -759,7 +761,7 @@ public class InsertQueryTest {
 
     @Test
     public void whenInsertingMultipleRolePlayers_BothRolePlayersAreAdded() {
-        List<Map<String, Concept>> results = qb.match(
+        List<Answer> results = qb.match(
                 var("g").has("title", "Godfather"),
                 var("m").has("title", "The Muppets")
         ).insert(

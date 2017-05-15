@@ -18,6 +18,7 @@
 
 package ai.grakn.graql.internal.gremlin.fragment;
 
+import ai.grakn.GraknGraph;
 import ai.grakn.graql.VarName;
 import com.google.common.collect.ImmutableSet;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
@@ -34,7 +35,7 @@ class NeqFragment extends AbstractFragment {
     }
 
     @Override
-    public void applyTraversal(GraphTraversal<Vertex, Vertex> traversal) {
+    public void applyTraversal(GraphTraversal<Vertex, Vertex> traversal, GraknGraph graph) {
         traversal.where(P.neq(other.getValue()));
     }
 
@@ -45,11 +46,30 @@ class NeqFragment extends AbstractFragment {
 
     @Override
     public double fragmentCost(double previousCost) {
-        return previousCost;
+        // This is arbitrary - we imagine about half the results are filtered out
+        return previousCost / 2.0;
     }
 
     @Override
     public ImmutableSet<VarName> getDependencies() {
         return ImmutableSet.of(other);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+
+        NeqFragment that = (NeqFragment) o;
+
+        return other.equals(that.other);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = super.hashCode();
+        result = 31 * result + other.hashCode();
+        return result;
     }
 }

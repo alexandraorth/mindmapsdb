@@ -27,6 +27,7 @@ import ai.grakn.concept.ResourceType;
 import ai.grakn.concept.RoleType;
 import ai.grakn.concept.TypeLabel;
 import ai.grakn.util.Schema;
+import com.google.common.collect.ImmutableSet;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.junit.Before;
@@ -36,7 +37,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
+import static junit.framework.TestCase.assertFalse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -89,10 +92,12 @@ public class PostProcessingTest extends GraphTestBase{
         castingVertex.addEdge(Schema.EdgeLabel.ISA.getLabel(), mainRoleType.getVertex());
 
         Edge edge = castingVertex.addEdge(Schema.EdgeLabel.ROLE_PLAYER.getLabel(), mainInstance.getVertex());
-        edge.property(Schema.EdgeProperty.ROLE_TYPE_LABEL.name(), mainRoleType.getId());
+        edge.property(Schema.EdgeProperty.ROLE_TYPE_ID.name(), mainRoleType.getTypeId());
 
         edge = relation.getVertex().addEdge(Schema.EdgeLabel.CASTING.getLabel(), castingVertex);
-        edge.property(Schema.EdgeProperty.ROLE_TYPE_LABEL.name(), mainRoleType.getId());
+        edge.property(Schema.EdgeProperty.ROLE_TYPE_ID.name(), mainRoleType.getTypeId());
+
+        relation.setHash();
 
         return graknGraph.admin().buildConcept(castingVertex);
     }
@@ -119,7 +124,7 @@ public class PostProcessingTest extends GraphTestBase{
 
     @Test
     public void whenMergingDuplicateResources_EnsureSingleResourceRemains(){
-        ResourceType<String> resourceType = graknGraph.putResourceType("Resource Type", ResourceType.DataType.STRING);
+        ResourceTypeImpl<String> resourceType = (ResourceTypeImpl<String>) graknGraph.putResourceType("Resource Type", ResourceType.DataType.STRING);
 
         //Create fake resources
         Set<ConceptId> resourceIds = new HashSet<>();
@@ -143,7 +148,7 @@ public class PostProcessingTest extends GraphTestBase{
         RoleType roleEntity = graknGraph.putRoleType("Entity Role");
         RoleType roleResource = graknGraph.putRoleType("Resource Role");
         RelationType relationType = graknGraph.putRelationType("Relation Type").relates(roleEntity).relates(roleResource);
-        ResourceType<String> resourceType = graknGraph.putResourceType("Resource Type", ResourceType.DataType.STRING).plays(roleResource);
+        ResourceTypeImpl<String> resourceType = (ResourceTypeImpl<String>) graknGraph.putResourceType("Resource Type", ResourceType.DataType.STRING).plays(roleResource);
         EntityType entityType = graknGraph.putEntityType("Entity Type").plays(roleEntity);
         Entity e1 = entityType.addEntity();
         Entity e2 = entityType.addEntity();
@@ -160,11 +165,22 @@ public class PostProcessingTest extends GraphTestBase{
         resourceIds.add(r111.getId());
 
         //Give resources some relationships
-        relationType.addRelation().addRolePlayer(roleResource, r1).addRolePlayer(roleEntity, e1);
-        relationType.addRelation().addRolePlayer(roleResource, r11).addRolePlayer(roleEntity, e1); //When merging this relation should not be absorbed
-        relationType.addRelation().addRolePlayer(roleResource, r11).addRolePlayer(roleEntity, e2); //Absorb
-        relationType.addRelation().addRolePlayer(roleResource, r111).addRolePlayer(roleEntity, e2); //Don't Absorb
-        relationType.addRelation().addRolePlayer(roleResource, r111).addRolePlayer(roleEntity, e3); //Absorb
+        RelationImpl rel1 = ((RelationImpl) relationType.addRelation().
+                addRolePlayer(roleResource, r1).addRolePlayer(roleEntity, e1));
+        RelationImpl rel2 = ((RelationImpl) relationType.addRelation().
+                addRolePlayer(roleResource, r11).addRolePlayer(roleEntity, e1)); //When merging this relation should not be absorbed
+        RelationImpl rel3 = ((RelationImpl) relationType.addRelation().
+                addRolePlayer(roleResource, r11).addRolePlayer(roleEntity, e2)); //Absorb
+        RelationImpl rel4 = ((RelationImpl) relationType.addRelation().
+                addRolePlayer(roleResource, r111).addRolePlayer(roleEntity, e2)); //Don't Absorb
+        RelationImpl rel5 = ((RelationImpl) relationType.addRelation().
+                addRolePlayer(roleResource, r111).addRolePlayer(roleEntity, e3)); //Absorb
+
+        rel1.setHash();
+        rel2.setHash();
+        rel3.setHash();
+        rel4.setHash();
+        rel5.setHash();
 
         //Check everything is broken
         assertEquals(3, resourceType.instances().size());
@@ -196,11 +212,11 @@ public class PostProcessingTest extends GraphTestBase{
     }
 
 
-    private ResourceImpl<String> createFakeResource(ResourceType<String> type, String value){
+    private ResourceImpl<String> createFakeResource(ResourceTypeImpl<String> type, String value){
         String index = Schema.generateResourceIndex(type.getLabel(), value);
         Vertex resourceVertex = graknGraph.getTinkerPopGraph().addVertex(Schema.BaseType.RESOURCE.name());
 
-        resourceVertex.addEdge(Schema.EdgeLabel.ISA.getLabel(), ((ResourceTypeImpl)type).getVertex());
+        resourceVertex.addEdge(Schema.EdgeLabel.ISA.getLabel(), ((ResourceTypeImpl)type.currentShard()).getVertex());
         resourceVertex.property(Schema.ConceptProperty.INDEX.name(), index);
         resourceVertex.property(Schema.ConceptProperty.VALUE_STRING.name(), value);
         resourceVertex.property(Schema.ConceptProperty.ID.name(), resourceVertex.id().toString());
@@ -221,7 +237,7 @@ public class PostProcessingTest extends GraphTestBase{
         types.put(t2.getLabel(), 6L);
         types.put(t3.getLabel(), 2L);
 
-        graknGraph.admin().updateTypeCounts(types);
+        graknGraph.admin().updateTypeShards(types);
         types.entrySet().forEach(entry ->
                 assertEquals((long) entry.getValue(), ((TypeImpl) graknGraph.getType(entry.getKey())).getInstanceCount()));
 
@@ -229,10 +245,40 @@ public class PostProcessingTest extends GraphTestBase{
         types.put(t1.getLabel(), -5L);
         types.put(t2.getLabel(), -2L);
         types.put(t3.getLabel(), 3L);
-        graknGraph.admin().updateTypeCounts(types);
+        graknGraph.admin().updateTypeShards(types);
 
         assertEquals(0L, t1.getInstanceCount());
         assertEquals(4L, t2.getInstanceCount());
         assertEquals(5L, t3.getInstanceCount());
+    }
+
+    @Test
+    public void whenPostProcessingCastingThatDoesNotExist_FixDuplicateCastingsReturnsFalse(){
+        String invalidCastingIndex = UUID.randomUUID().toString();
+
+        assertFalse("Fix duplicate castings returns false",
+                graknGraph.fixDuplicateCastings(invalidCastingIndex, ImmutableSet.of(ConceptId.of(invalidCastingIndex))));
+    }
+
+    @Test
+    public void whenPostProcessingCastingThatExistsButNoDuplicate_FixDuplicateCastingsReturnsFalse(){
+        CastingImpl validCasting = (CastingImpl) instance1.castings().iterator().next();
+
+        assertFalse("Fix duplicate castings returns false",
+                graknGraph.fixDuplicateCastings(validCasting.getIndex(), ImmutableSet.of(validCasting.getId())));
+    }
+
+    @Test
+    public void whenPostProcessingCastingThatExistsAndDuplicate_FixDuplicateCastingsReturnsTrue(){
+        CastingImpl validCasting = (CastingImpl) instance1.castings().iterator().next();
+        ConceptId otherCasting = ConceptId.of(buildDuplicateCastingWithNewRelation(validCasting, relationType, (RoleTypeImpl) roleType1, instance1, roleType2, instance3).getId().getValue());
+        assertEquals(2, instance1.castings().size());
+
+        assertTrue("Fix duplicate castings returns true",
+                graknGraph.fixDuplicateCastings(validCasting.getIndex(), ImmutableSet.of(validCasting.getId()))
+                        ||
+                graknGraph.fixDuplicateCastings(validCasting.getIndex(), ImmutableSet.of(otherCasting)));
+
+        assertEquals(1, instance1.castings().size());
     }
 }

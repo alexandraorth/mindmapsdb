@@ -19,32 +19,40 @@
 package ai.grakn.graql.internal.reasoner.query;
 
 import ai.grakn.GraknGraph;
+import ai.grakn.concept.Concept;
 import ai.grakn.concept.Type;
 import ai.grakn.graql.MatchQuery;
 import ai.grakn.graql.VarName;
+import ai.grakn.graql.admin.Answer;
 import ai.grakn.graql.admin.Atomic;
 import ai.grakn.graql.admin.Conjunction;
 import ai.grakn.graql.admin.PatternAdmin;
-import ai.grakn.graql.admin.Answer;
 import ai.grakn.graql.admin.ReasonerQuery;
 import ai.grakn.graql.admin.Unifier;
 import ai.grakn.graql.admin.VarAdmin;
 import ai.grakn.graql.internal.pattern.Patterns;
-import ai.grakn.graql.internal.reasoner.Utility;
+import ai.grakn.graql.internal.query.QueryAnswer;
+import ai.grakn.graql.internal.reasoner.ReasonerUtils;
 import ai.grakn.graql.internal.reasoner.atom.Atom;
 import ai.grakn.graql.internal.reasoner.atom.AtomicFactory;
 import ai.grakn.graql.internal.reasoner.atom.NotEquals;
+import ai.grakn.graql.internal.reasoner.atom.binary.BinaryBase;
 import ai.grakn.graql.internal.reasoner.atom.binary.TypeAtom;
 import ai.grakn.graql.internal.reasoner.atom.predicate.IdPredicate;
 import ai.grakn.graql.internal.reasoner.atom.predicate.Predicate;
 import ai.grakn.graql.internal.reasoner.atom.predicate.ValuePredicate;
 import ai.grakn.graql.internal.reasoner.cache.Cache;
 import ai.grakn.graql.internal.reasoner.cache.LazyQueryCache;
+import ai.grakn.graql.internal.reasoner.cache.QueryCache;
+import ai.grakn.graql.internal.reasoner.iterator.ReasonerQueryIterator;
+import ai.grakn.graql.internal.reasoner.rule.InferenceRule;
 import ai.grakn.util.ErrorMessage;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -55,11 +63,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static ai.grakn.graql.internal.reasoner.Utility.uncapture;
+import static ai.grakn.graql.internal.reasoner.ReasonerUtils.uncapture;
 import static ai.grakn.graql.internal.reasoner.query.QueryAnswerStream.join;
+import static ai.grakn.graql.internal.reasoner.query.QueryAnswerStream.joinWithInverse;
 import static ai.grakn.graql.internal.reasoner.query.QueryAnswerStream.nonEqualsFilter;
 import static ai.grakn.graql.internal.reasoner.query.QueryAnswerStream.varFilterFunction;
 
@@ -77,15 +87,15 @@ public class ReasonerQueryImpl implements ReasonerQuery {
     private final GraknGraph graph;
     private final Set<Atomic> atomSet = new HashSet<>();
 
-    public ReasonerQueryImpl(Conjunction<VarAdmin> pattern, GraknGraph graph) {
+    protected ReasonerQueryImpl(Conjunction<VarAdmin> pattern, GraknGraph graph) {
         this.graph = graph;
         atomSet.addAll(AtomicFactory.createAtomSet(pattern, this));
         inferTypes();
     }
 
-    public ReasonerQueryImpl(ReasonerQueryImpl q) {
+    ReasonerQueryImpl(ReasonerQueryImpl q) {
         this.graph = q.graph;
-        q.getAtoms().forEach(at -> addAtom(AtomicFactory.create(at, this)));
+        q.getAtoms().forEach(at -> addAtomic(AtomicFactory.create(at, this)));
         inferTypes();
     }
 
@@ -94,17 +104,24 @@ public class ReasonerQueryImpl implements ReasonerQuery {
             throw new IllegalArgumentException(ErrorMessage.PARENT_MISSING.getMessage(atom.toString()));
         }
         this.graph = atom.getParentQuery().graph();
-        addAtom(AtomicFactory.create(atom, this));
-        addAtomConstraints(atom);
+        addAtomic(AtomicFactory.create(atom, this));
+        addAtomConstraints(atom.getNonSelectableConstraints());
         inferTypes();
     }
 
     @Override
-    public ReasonerQuery copy(){ return new ReasonerQueryImpl(this);}
+    public String toString(){
+        return getAtoms().stream().filter(Atomic::isAtom).map(Atomic::toString).collect(Collectors.joining(", "));
+    }
+
+    @Override
+    public ReasonerQuery copy() {
+        return new ReasonerQueryImpl(this);
+    }
 
     //alpha-equivalence equality
     @Override
-    public boolean equals(Object obj){
+    public boolean equals(Object obj) {
         if (obj == null || this.getClass() != obj.getClass()) return false;
         if (obj == this) return true;
         ReasonerQueryImpl a2 = (ReasonerQueryImpl) obj;
@@ -112,7 +129,7 @@ public class ReasonerQueryImpl implements ReasonerQuery {
     }
 
     @Override
-    public int hashCode(){
+    public int hashCode() {
         int hashCode = 1;
         SortedSet<Integer> hashes = new TreeSet<>();
         atomSet.forEach(atom -> hashes.add(atom.equivalenceHashCode()));
@@ -120,16 +137,15 @@ public class ReasonerQueryImpl implements ReasonerQuery {
         return hashCode;
     }
 
-    @Override
-    public String toString() { return getPattern().toString();}
-
-    private void inferTypes(){
+    private void inferTypes() {
         getAtoms().stream()
                 .filter(Atomic::isAtom).map(at -> (Atom) at)
                 .forEach(Atom::inferTypes);
     }
 
-    public GraknGraph graph(){ return graph;}
+    public GraknGraph graph() {
+        return graph;
+    }
 
     public Conjunction<PatternAdmin> getPattern() {
         Set<PatternAdmin> patterns = new HashSet<>();
@@ -143,29 +159,57 @@ public class ReasonerQueryImpl implements ReasonerQuery {
     /**
      * @return true if any of the atoms constituting the query can be resolved through a rule
      */
-    public boolean isRuleResolvable(){
+    @Override
+    public boolean isRuleResolvable() {
         Iterator<Atom> it = atomSet.stream().filter(Atomic::isAtom).map(at -> (Atom) at).iterator();
-        while(it.hasNext()) {
-            if (it.next().isRuleResolvable()){
+        while (it.hasNext()) {
+            if (it.next().isRuleResolvable()) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean isTransitive(){
+    private boolean isTransitive() {
         return getAtoms().stream().filter(this::containsEquivalentAtom).count() == 2;
+    }
+
+    boolean isAtomic() {
+        return getAtoms().stream().filter(Atomic::isSelectable).count() == 1;
     }
 
     /**
      * @return atom set constituting this query
      */
-    public Set<Atomic> getAtoms() { return Sets.newHashSet(atomSet);}
+    @Override
+    public Set<Atomic> getAtoms() {
+        return Sets.newHashSet(atomSet);
+    }
+
+    private List<Atom> getPrioritisedAtoms(){
+        return selectAtoms().stream()
+                .sorted(Comparator.comparing(Atom::resolutionPriority).reversed())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * @return atom that should be prioritised for resolution
+     */
+    Atom getTopAtom() {
+        return getPrioritisedAtoms().stream().findFirst().orElse(null);
+    }
+
+    /**
+     * @return resolution plan in a form a atom[priority]->... string
+     */
+    String getResolutionPlan(){
+        return getPrioritisedAtoms().stream().map(at -> at + "[" + at.resolutionPriority()+ "]").collect(Collectors.joining(" -> "));
+    }
 
     /**
      * @return set of id predicates contained in this query
      */
-    public Set<IdPredicate> getIdPredicates(){
+    public Set<IdPredicate> getIdPredicates() {
         return getAtoms().stream()
                 .filter(Atomic::isPredicate).map(at -> (Predicate) at)
                 .filter(Predicate::isIdPredicate).map(predicate -> (IdPredicate) predicate)
@@ -175,7 +219,7 @@ public class ReasonerQueryImpl implements ReasonerQuery {
     /**
      * @return set of value predicates contained in this query
      */
-    public Set<ValuePredicate> getValuePredicates(){
+    public Set<ValuePredicate> getValuePredicates() {
         return getAtoms().stream()
                 .filter(Atomic::isPredicate).map(at -> (Predicate) at)
                 .filter(Predicate::isValuePredicate).map(at -> (ValuePredicate) at)
@@ -185,7 +229,7 @@ public class ReasonerQueryImpl implements ReasonerQuery {
     /**
      * @return set of atoms constituting constraints (by means of types) for this atom
      */
-    public Set<TypeAtom> getTypeConstraints(){
+    public Set<TypeAtom> getTypeConstraints() {
         return getAtoms().stream()
                 .filter(Atomic::isAtom).map(at -> (Atom) at)
                 .filter(Atom::isType).map(at -> (TypeAtom) at)
@@ -195,7 +239,7 @@ public class ReasonerQueryImpl implements ReasonerQuery {
     /**
      * @return set of filter atoms (currently only NotEquals) contained in this query
      */
-    public Set<NotEquals> getFilters(){
+    public Set<NotEquals> getFilters() {
         return getAtoms().stream()
                 .filter(at -> at.getClass() == NotEquals.class)
                 .map(at -> (NotEquals) at)
@@ -205,6 +249,7 @@ public class ReasonerQueryImpl implements ReasonerQuery {
     /**
      * @return set of variables appearing in this query
      */
+    @Override
     public Set<VarName> getVarNames() {
         Set<VarName> vars = new HashSet<>();
         atomSet.forEach(atom -> vars.addAll(atom.getVarNames()));
@@ -215,15 +260,15 @@ public class ReasonerQueryImpl implements ReasonerQuery {
      * @param atom in question
      * @return true if query contains an equivalent atom
      */
-    public boolean containsEquivalentAtom(Atomic atom){
+    public boolean containsEquivalentAtom(Atomic atom) {
         return !getEquivalentAtoms(atom).isEmpty();
     }
 
-    Set<Atomic> getEquivalentAtoms(Atomic atom){
+    Set<Atomic> getEquivalentAtoms(Atomic atom) {
         return atomSet.stream().filter(at -> at.isEquivalent(atom)).collect(Collectors.toSet());
     }
 
-    private void exchangeRelVarNames(VarName from, VarName to){
+    private void exchangeRelVarNames(VarName from, VarName to) {
         unify(to, VarName.of("temp"));
         unify(from, to);
         unify(VarName.of("temp"), from);
@@ -236,8 +281,9 @@ public class ReasonerQueryImpl implements ReasonerQuery {
 
     /**
      * change each variable occurrence in the query (apply unifier [from/to])
+     *
      * @param from variable name to be changed
-     * @param to new variable name
+     * @param to   new variable name
      */
     @Override
     public void unify(VarName from, VarName to) {
@@ -246,9 +292,9 @@ public class ReasonerQueryImpl implements ReasonerQuery {
 
         atomSet.stream().filter(atom -> atom.getVarNames().contains(from)).forEach(toRemove::add);
         toRemove.forEach(atom -> toAdd.add(AtomicFactory.create(atom, this)));
-        toRemove.forEach(this::removeAtom);
+        toRemove.forEach(this::removeAtomic);
         toAdd.forEach(atom -> atom.unify(new UnifierImpl(ImmutableMap.of(from, to))));
-        toAdd.forEach(this::addAtom);
+        toAdd.forEach(this::addAtomic);
     }
 
     /**
@@ -287,9 +333,9 @@ public class ReasonerQueryImpl implements ReasonerQuery {
                 })
                 .forEach(toRemove::add);
         toRemove.forEach(atom -> toAdd.add(AtomicFactory.create(atom, this)));
-        toRemove.forEach(this::removeAtom);
+        toRemove.forEach(this::removeAtomic);
         toAdd.forEach(atom -> atom.unify(mappings));
-        toAdd.forEach(this::addAtom);
+        toAdd.forEach(this::addAtomic);
 
         //NB:captures not resolved in place as resolution in-place alters respective atom hash
         mappings.merge(resolveCaptures());
@@ -297,13 +343,14 @@ public class ReasonerQueryImpl implements ReasonerQuery {
 
     /**
      * finds captured variable occurrences in a query and replaces them with fresh variables
+     *
      * @return new mappings resulting from capture resolution
      */
     private Unifier resolveCaptures() {
         Unifier newMappings = new UnifierImpl();
         //find and resolve captures
         // TODO: This could cause bugs if a user has a variable including the word "capture"
-        getVarNames().stream().filter(Utility::isCaptured)
+        getVarNames().stream().filter(ReasonerUtils::isCaptured)
                 .forEach(cap -> {
                     VarName old = uncapture(cap);
                     VarName fresh = VarName.anon();
@@ -324,12 +371,13 @@ public class ReasonerQueryImpl implements ReasonerQuery {
     /**
      * @return map of variable name - type pairs
      */
+    @Override
     public Map<VarName, Type> getVarTypeMap() {
-        Map<VarName, Type> map = new HashMap<>();
+        Map<VarName, Type> typeMap = new HashMap<>();
         getTypeConstraints().stream()
                 .filter(at -> Objects.nonNull(at.getType()))
-                .forEach(atom -> map.putIfAbsent(atom.getVarName(), atom.getType()));
-        return map;
+                .forEach(atom -> typeMap.putIfAbsent(atom.getVarName(), atom.getType()));
+        return typeMap;
     }
 
     /**
@@ -347,27 +395,45 @@ public class ReasonerQueryImpl implements ReasonerQuery {
      * @param atom to be added
      * @return true if the atom set did not already contain the specified atom
      */
-    public boolean addAtom(Atomic atom) {
-        if(atomSet.add(atom)) {
+    public boolean addAtomic(Atomic atom) {
+        if (atomSet.add(atom)) {
             atom.setParentQuery(this);
             return true;
-        }
-        else return false;
+        } else return false;
     }
 
     /**
      * @param atom to be removed
      * @return true if the atom set contained the specified atom
      */
-    public boolean removeAtom(Atomic atom) {return atomSet.remove(atom);}
+    public boolean removeAtomic(Atomic atom) {
+        return atomSet.remove(atom);
+    }
 
-    private void addAtomConstraints(Atom atom){
-        addAtomConstraints(atom.getPredicates());
-        Set<Atom> types = atom.getTypeConstraints().stream()
+    /**
+     * remove given atom together with its disjoint neighbours (atoms it is connected to)
+     * @param atom to be removed
+     * @return modified query
+     */
+    ReasonerQueryImpl removeAtom(Atom atom){
+        //selectability may change after removing the top atom so determine first
+        Set<TypeAtom> nonSelectableTypes = atom.getTypeConstraints().stream()
                 .filter(at -> !at.isSelectable())
-                .filter(at -> !at.isRuleResolvable())
                 .collect(Collectors.toSet());
-        addAtomConstraints(types);
+
+        //remove atom of interest
+        removeAtomic(atom);
+
+        //remove disjoint type constraints
+        nonSelectableTypes.stream()
+                .filter(at -> findNextJoinable(at) == null)
+                .forEach(this::removeAtomic);
+
+        //remove dangling predicates
+        atom.getPredicates().stream()
+                .filter(pred -> getVarNames().contains(pred.getVarName()))
+                .forEach(this::removeAtomic);
+        return this;
     }
 
     /**
@@ -375,7 +441,7 @@ public class ReasonerQueryImpl implements ReasonerQuery {
      * @param cstrs set of constraints
      */
     public void addAtomConstraints(Set<? extends Atomic> cstrs){
-        cstrs.forEach(con -> addAtom(AtomicFactory.create(con, this)));
+        cstrs.forEach(con -> addAtomic(AtomicFactory.create(con, this)));
     }
 
     private Atom findFirstJoinable(Set<Atom> atoms){
@@ -393,6 +459,11 @@ public class ReasonerQueryImpl implements ReasonerQuery {
         return null;
     }
 
+    //TODO move to Atom?
+    /**
+     * @param atom for which the neighbour is to be found
+     * @return neighbour or null if disjoint
+     */
     public Atom findNextJoinable(Atom atom){
         Set<Atom> atoms = getAtoms().stream()
                 .filter(Atomic::isAtom).map(at -> (Atom) at)
@@ -452,6 +523,49 @@ public class ReasonerQueryImpl implements ReasonerQuery {
         return true;
     }
 
+    Answer getSubstitution(){
+        Set<IdPredicate> predicates = this.getTypeConstraints().stream()
+                .map(TypeAtom::getPredicate)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        predicates.addAll(getIdPredicates());
+
+        // the mapping function is declared separately to please the Eclipse compiler
+        Function<IdPredicate, Concept> f = p -> graph().getConcept(p.getPredicate());
+
+        return new QueryAnswer(predicates.stream()
+                .collect(Collectors.toMap(IdPredicate::getVarName, f))
+        );
+    }
+
+    ReasonerQueryImpl addSubstitution(Answer sub){
+        Set<VarName> varNames = getVarNames();
+
+        //skip predicates from types
+        getTypeConstraints().stream().map(BinaryBase::getValueVariable).forEach(varNames::remove);
+
+        Set<IdPredicate> predicates = sub.entrySet().stream()
+                .filter(e -> varNames.contains(e.getKey()))
+                .map(e -> new IdPredicate(e.getKey(), e.getValue(), this))
+                .collect(Collectors.toSet());
+        atomSet.addAll(predicates);
+        return this;
+    }
+
+    boolean hasFullSubstitution(){
+        return getSubstitution().keySet().containsAll(getVarNames());
+    }
+
+    boolean requiresMaterialisation(){
+        for(Atom atom : selectAtoms()){
+            for (InferenceRule rule : atom.getApplicableRules())
+                if (rule.requiresMaterialisation(atom)){
+                    return true;
+                }
+        }
+        return false;
+    }
+
     private Stream<Answer> fullJoin(Set<ReasonerAtomicQuery> subGoals,
                                     Cache<ReasonerAtomicQuery, ?> cache,
                                     Cache<ReasonerAtomicQuery, ?> dCache,
@@ -489,7 +603,12 @@ public class ReasonerQueryImpl implements ReasonerQuery {
             for(ReasonerAtomicQuery qj : queries){
                 if ( qj != qi ){
                     Set<VarName> joinVars = Sets.intersection(joinedVars, qj.getVarNames());
-                    subs = join(subs, cache.getAnswerStream(qj), ImmutableSet.copyOf(joinVars), explanation);
+                    subs = joinWithInverse(
+                            subs,
+                            cache.getAnswerStream(qj),
+                            cache.getInverseAnswerMap(qj, joinVars),
+                            ImmutableSet.copyOf(joinVars),
+                            explanation);
                     joinedVars.addAll(qj.getVarNames());
                 }
             }
@@ -515,7 +634,11 @@ public class ReasonerQueryImpl implements ReasonerQuery {
 
     @Override
     public Stream<Answer> resolve(boolean materialise, boolean explanation) {
-        return resolve(materialise, explanation, new LazyQueryCache<>(explanation), new LazyQueryCache<>(explanation));
+        if (materialise || requiresMaterialisation()) {
+            return resolve(materialise, explanation, new LazyQueryCache<>(explanation), new LazyQueryCache<>(explanation));
+        } else {
+            return new QueryAnswerIterator(this).hasStream();
+        }
     }
 
     /**
@@ -524,10 +647,6 @@ public class ReasonerQueryImpl implements ReasonerQuery {
      * @return stream of answers
      */
     public Stream<Answer> resolve(boolean materialise, boolean explanation, LazyQueryCache<ReasonerAtomicQuery> cache, LazyQueryCache<ReasonerAtomicQuery> dCache) {
-        if (!this.isRuleResolvable()) {
-            return this.getMatchQuery().admin().streamWithVarNames()
-                    .map(QueryAnswer::new);
-        }
 
         Iterator<Atom> atIt = this.selectAtoms().iterator();
         ReasonerAtomicQuery atomicQuery = new ReasonerAtomicQuery(atIt.next());
@@ -546,5 +665,9 @@ public class ReasonerQueryImpl implements ReasonerQuery {
         return answerStream
                 .filter(a -> nonEqualsFilter(a, filters))
                 .flatMap(a -> varFilterFunction.apply(a, vars));
+    }
+
+    public ReasonerQueryIterator iterator(Answer sub, Set<ReasonerAtomicQuery> subGoals, QueryCache<ReasonerAtomicQuery> cache){
+        return new ReasonerQueryImplIterator(this, sub, subGoals, cache);
     }
 }

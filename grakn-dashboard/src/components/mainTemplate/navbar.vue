@@ -130,37 +130,37 @@ nav a {
 </style>
 
 <script>
-import User from '../../js/User.js';
-const GraqlEditor = require('../graqlEditor/graqlEditor.vue');
-const KeyspacesSelect = require('../keyspacesSelect.vue');
+import User from '../../js/User';
+import GraqlEditor from '../graqlEditor/graqlEditor.vue';
+import KeyspacesSelect from '../keyspacesSelect.vue';
 
 
 export default {
-    props: ['componentCenterLeft', 'componentCenterRight', 'componentCenter'],
-    components: {
-        GraqlEditor,
-        KeyspacesSelect
+  props: ['componentCenterLeft', 'componentCenterRight', 'componentCenter'],
+  components: {
+    GraqlEditor,
+    KeyspacesSelect,
+  },
+  data() {
+    return {
+      isUserAuth: User.isAuthenticated(),
+      hamburgerActive: false,
+    };
+  },
+  created() {},
+  mounted() {
+    this.$nextTick(() => {
+    });
+  },
+  methods: {
+    logout() {
+      User.logout();
+      this.$router.push('/login');
     },
-    data: function() {
-        return {
-            isUserAuth: User.isAuthenticated(),
-            hamburgerActive: false,
-        }
+    toggleSideBar() {
+      this.$emit('toogle-sidebar');
+      this.hamburgerActive = !this.hamburgerActive;
     },
-    created: function() {},
-    mounted: function() {
-        this.$nextTick(function() {
-        })
-    },
-    methods: {
-        logout() {
-            User.logout();
-            this.$router.push("/login");
-        },
-        toggleSideBar() {
-            this.$emit('toogle-sidebar');
-            this.hamburgerActive = !this.hamburgerActive;
-        }
-    }
-}
+  },
+};
 </script>

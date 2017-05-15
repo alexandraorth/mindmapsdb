@@ -20,20 +20,16 @@ package ai.grakn.graql.internal.reasoner.query;
 
 import ai.grakn.GraknGraph;
 import ai.grakn.concept.Concept;
-import ai.grakn.concept.RelationType;
-import ai.grakn.concept.RoleType;
 import ai.grakn.graql.Graql;
-import ai.grakn.graql.InsertQuery;
-import ai.grakn.graql.Var;
 import ai.grakn.graql.VarName;
-import ai.grakn.graql.admin.Atomic;
-import ai.grakn.graql.admin.Conjunction;
 import ai.grakn.graql.admin.Answer;
 import ai.grakn.graql.admin.AnswerExplanation;
+import ai.grakn.graql.admin.Atomic;
+import ai.grakn.graql.admin.Conjunction;
 import ai.grakn.graql.admin.ReasonerQuery;
 import ai.grakn.graql.admin.Unifier;
 import ai.grakn.graql.admin.VarAdmin;
-import ai.grakn.graql.internal.reasoner.Utility;
+import ai.grakn.graql.internal.query.QueryAnswer;
 import ai.grakn.graql.internal.reasoner.atom.Atom;
 import ai.grakn.graql.internal.reasoner.atom.AtomicFactory;
 import ai.grakn.graql.internal.reasoner.atom.binary.Relation;
@@ -41,8 +37,10 @@ import ai.grakn.graql.internal.reasoner.atom.binary.TypeAtom;
 import ai.grakn.graql.internal.reasoner.atom.predicate.IdPredicate;
 import ai.grakn.graql.internal.reasoner.cache.Cache;
 import ai.grakn.graql.internal.reasoner.cache.LazyQueryCache;
+import ai.grakn.graql.internal.reasoner.cache.QueryCache;
 import ai.grakn.graql.internal.reasoner.explanation.LookupExplanation;
 import ai.grakn.graql.internal.reasoner.explanation.RuleExplanation;
+import ai.grakn.graql.internal.reasoner.iterator.ReasonerQueryIterator;
 import ai.grakn.graql.internal.reasoner.rule.InferenceRule;
 import ai.grakn.util.ErrorMessage;
 import com.google.common.collect.Sets;
@@ -51,19 +49,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static ai.grakn.graql.internal.reasoner.Utility.getListPermutations;
-import static ai.grakn.graql.internal.reasoner.Utility.getUnifiersFromPermutations;
+import static ai.grakn.graql.internal.reasoner.ReasonerUtils.getListPermutations;
+import static ai.grakn.graql.internal.reasoner.ReasonerUtils.getUnifiersFromPermutations;
 import static ai.grakn.graql.internal.reasoner.query.QueryAnswerStream.entityTypeFilter;
 import static ai.grakn.graql.internal.reasoner.query.QueryAnswerStream.knownFilterWithInverse;
 import static ai.grakn.graql.internal.reasoner.query.QueryAnswerStream.permuteFunction;
@@ -74,7 +70,7 @@ import static ai.grakn.graql.internal.reasoner.query.QueryAnswerStream.varFilter
  *
  * <p>
  * Base reasoner atomic query. An atomic query is a query constrained to having at most one rule-resolvable atom
- * together with its accompanying constraints (predicates and types)
+ * together with its accompanying constraints (predicates and types).
  * </p>
  *
  * @author Kasper Piskorski
@@ -83,19 +79,19 @@ import static ai.grakn.graql.internal.reasoner.query.QueryAnswerStream.varFilter
 public class ReasonerAtomicQuery extends ReasonerQueryImpl {
 
     private Atom atom;
-
     private static final Logger LOG = LoggerFactory.getLogger(ReasonerAtomicQuery.class);
 
-    public ReasonerAtomicQuery(Conjunction<VarAdmin> pattern, GraknGraph graph) {
+    ReasonerAtomicQuery(Conjunction<VarAdmin> pattern, GraknGraph graph) {
         super(pattern, graph);
-        atom = selectAtoms().iterator().next();
+        atom = selectAtoms().stream().findFirst().orElse(null);
     }
 
-    public ReasonerAtomicQuery(ReasonerAtomicQuery query) {
+    ReasonerAtomicQuery(ReasonerQueryImpl query) {
         super(query);
+        atom = selectAtoms().stream().findFirst().orElse(null);
     }
 
-    public ReasonerAtomicQuery(Atom at) {
+    ReasonerAtomicQuery(Atom at) {
         super(at);
         atom = selectAtoms().stream().findFirst().orElse(null);
     }
@@ -121,16 +117,16 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
     }
 
     @Override
-    public boolean addAtom(Atomic at) {
-        if (super.addAtom(at)) {
+    public boolean addAtomic(Atomic at) {
+        if (super.addAtomic(at)) {
             if (atom == null && at.isSelectable()) atom = (Atom) at;
             return true;
         } else return false;
     }
 
     @Override
-    public boolean removeAtom(Atomic at) {
-        if (super.removeAtom(at)) {
+    public boolean removeAtomic(Atomic at) {
+        if (super.removeAtomic(at)) {
             if (at.equals(atom)) atom = null;
             return true;
         } else return false;
@@ -172,7 +168,6 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
 
     /**
      * resolve the query by performing either a db or memory lookup, depending on which is more appropriate
-     *
      * @param cache container of already performed query resolutions
      */
     public Stream<Answer> lookup(Cache<ReasonerAtomicQuery, ?> cache) {
@@ -180,105 +175,68 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
         return queryVisited ? cache.getAnswerStream(this) : DBlookup(cache);
     }
 
+    Pair<Stream<Answer>, Unifier> lookupWithUnifier(Cache<ReasonerAtomicQuery, ?> cache) {
+        boolean queryVisited = cache.contains(this);
+        return queryVisited ? cache.getAnswerStreamWithUnifier(this) : new Pair<>(DBlookup(), new UnifierImpl());
+    }
+
+    private Stream<Answer> DBlookup() {
+        return getMatchQuery().admin().stream()
+                .map(QueryAnswer::new)
+                .map(a -> a.explain(new LookupExplanation(this)));
+    }
+
     /**
      * resolve the query by performing a db lookup with subsequent cache update
      */
     private Stream<Answer> DBlookup(Cache<ReasonerAtomicQuery, ?> cache) {
-        AnswerExplanation exp = new LookupExplanation(this);
-        Stream<Answer> dbStream = getMatchQuery().admin().streamWithVarNames()
-                .map(QueryAnswer::new)
-                .map(a -> a.explain(exp));
-        cache.record(this, dbStream);
-        return cache.getAnswerStream(this);
-    }
-
-    /**
-     * resolve the query by performing a db lookup
-     */
-    public Stream<Answer> DBlookup() {
-        AnswerExplanation exp = new LookupExplanation(this);
-        return getMatchQuery().admin().streamWithVarNames()
-                .map(QueryAnswer::new)
-                .map(a -> a.explain(exp));
+        return cache.record(this, DBlookup());
     }
 
     /**
      * execute insert on the query and return inserted answers
      */
     private Stream<Answer> insert() {
-        InsertQuery insert = Graql.insert(getPattern().getVars()).withGraph(graph());
-        return insert.stream()
-                .map(m -> m.entrySet().stream().collect(Collectors.toMap(k -> VarName.of(k.getKey()), Map.Entry::getValue)))
-                .map(QueryAnswer::new);
+        return Graql.insert(getPattern().getVars()).withGraph(graph()).stream();
     }
 
     private Stream<Answer> materialiseDirect() {
-        //extrapolate if needed
+        //check if unambiguous
         if (atom.isRelation()) {
-            Relation relAtom = (Relation) atom;
-            Set<VarName> rolePlayers = relAtom.getRolePlayers();
-            if (relAtom.getRoleVarTypeMap().size() != rolePlayers.size()) {
-                RelationType relType = (RelationType) relAtom.getType();
-                Set<RoleType> roles = Sets.newHashSet(relType.relates());
-                Set<Map<VarName, Var>> roleMaps = new HashSet<>();
-                Utility.computeRoleCombinations(rolePlayers, roles, new HashMap<>(), roleMaps);
-
-                Stream<Answer> answerStream = Stream.empty();
-                for (Map<VarName, Var> roleMap : roleMaps) {
-                    Relation relationWithRoles = new Relation(relAtom.getVarName(), relAtom.getValueVariable(),
-                            roleMap, relAtom.getPredicate(), this);
-                    this.removeAtom(relAtom);
-                    this.addAtom(relationWithRoles);
-                    answerStream = Stream.concat(answerStream, insert());
-                    this.removeAtom(relationWithRoles);
-                    this.addAtom(relAtom);
-                }
-                return answerStream;
-            } else {
-                return insert();
+            Relation relationAtom = (Relation) atom;
+            if (relationAtom.hasMetaRoles()) {
+                throw new IllegalStateException(ErrorMessage.MATERIALIZATION_ERROR.getMessage(this));
             }
-        } else {
-            return insert();
         }
+        return insert();
     }
 
     public Stream<Answer> materialise(Answer answer) {
         ReasonerAtomicQuery queryToMaterialise = new ReasonerAtomicQuery(this);
-        answer.entrySet().stream()
-                .map(e -> new IdPredicate(e.getKey(), e.getValue(), queryToMaterialise))
-                .forEach(queryToMaterialise::addAtom);
-
+        queryToMaterialise.addSubstitution(answer);
         return queryToMaterialise.materialiseDirect()
                 .map(ans -> ans.setExplanation(answer.getExplanation()));
     }
 
     private Set<Unifier> getPermutationUnifiers(Atom headAtom) {
         if (!(atom.isRelation() && headAtom.isRelation())) return new HashSet<>();
-        List<VarName> permuteVars = new ArrayList<>();
+
         //if atom is match all atom, add type from rule head and find unmapped roles
         Relation relAtom = atom.getValueVariable().getValue().isEmpty() ?
                 ((Relation) AtomicFactory.create(atom, atom.getParentQuery())).addType(headAtom.getType()) :
                 (Relation) atom;
-        relAtom.getUnmappedRolePlayers().forEach(permuteVars::add);
+        List<VarName> permuteVars = new ArrayList<>(relAtom.getUnmappedRolePlayers());
 
         List<List<VarName>> varPermutations = getListPermutations(new ArrayList<>(permuteVars)).stream()
                 .filter(l -> !l.isEmpty()).collect(Collectors.toList());
         return getUnifiersFromPermutations(permuteVars, varPermutations);
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<VarName, Concept> getIdPredicateAnswer(){
-        Object result = this.getTypeConstraints().stream()
-                .map(TypeAtom::getPredicate).filter(Objects::nonNull)
-                .collect(Collectors.toMap(IdPredicate::getVarName, sub -> graph().getConcept(sub.getPredicate())));
-        return (Map<VarName, Concept>)result;
-    }
-
     private Stream<Answer> getIdPredicateAnswerStream(Stream<Answer> stream){
-        Map<VarName, Concept> idPredicateAnswer = getIdPredicateAnswer();
+        Answer idPredicateAnswer = getSubstitution();
         return stream.map(answer -> {
-            answer.putAll(idPredicateAnswer);
-            return answer;
+            AnswerExplanation exp = answer.getExplanation();
+            return answer.merge(idPredicateAnswer).explain(exp);
         });
     }
 
@@ -312,7 +270,8 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
                                           boolean explanation,
                                           boolean differentialJoin){
         Atom atom = this.getAtom();
-        rule.unify(atom);
+        rule.unify(atom).propagateConstraints(atom);
+
         ReasonerQueryImpl ruleBody = rule.getBody();
         ReasonerAtomicQuery ruleHead = rule.getHead();
         Set<VarName> varsToRetain = rule.hasDisconnectedHead()? ruleBody.getVarNames() : ruleHead.getVarNames();
@@ -324,8 +283,8 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
                 .distinct()
                 .map(ans -> ans.explain(new RuleExplanation(rule)));
 
-        if (materialise || rule.requiresMaterialisation()) {
-            if (!cache.contains(ruleHead)) ruleHead.lookup(cache);
+        if (materialise || rule.requiresMaterialisation(atom)) {
+            if (!cache.contains(ruleHead)) dCache.record(ruleHead, ruleHead.lookup(cache));
             //filter known to make sure no duplicates are inserted (put behaviour)
             Map<Pair<VarName, Concept>, Set<Answer>> known = cache.getInverseAnswerMap(ruleHead);
             Map<Pair<VarName, Concept>, Set<Answer>> dknown = dCache.getInverseAnswerMap(ruleHead);
@@ -357,7 +316,7 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
                                        boolean differentialJoin){
         boolean queryAdmissible = !subGoals.contains(this);
 
-        Stream<Answer> answerStream = cache.contains(this)? Stream.empty() : dCache.record(this, lookup(cache));
+        Stream<Answer> answerStream = cache.contains(this) ? Stream.empty() : dCache.record(this, lookup(cache));
         if(queryAdmissible) {
             Set<InferenceRule> rules = getAtom().getApplicableRules();
             for (InferenceRule rule : rules) {
@@ -369,13 +328,36 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
         return dCache.record(this, answerStream);
     }
 
+    @Override
     public Stream<Answer> resolve(boolean materialise, boolean explanation, LazyQueryCache<ReasonerAtomicQuery> cache, LazyQueryCache<ReasonerAtomicQuery> dCache) {
         if (!this.getAtom().isRuleResolvable()) {
-            return this.getMatchQuery().admin().streamWithVarNames()
-                    .map(QueryAnswer::new);
+            return this.getMatchQuery().admin().stream().map(QueryAnswer::new);
         } else {
             return new QueryAnswerIterator(materialise, explanation, cache, dCache).hasStream();
         }
+    }
+
+    @Override
+    public ReasonerQueryIterator iterator(Answer sub, Set<ReasonerAtomicQuery> subGoals, QueryCache<ReasonerAtomicQuery> cache){
+        return new ReasonerAtomicQueryIterator(this, sub, subGoals, cache);
+    }
+
+    Iterator<InferenceRule> getRuleIterator(){
+        Atom atom = getAtom();
+        //list cause rules with permuted role types are alpha-equivalent
+        List<InferenceRule> rules = getAtom().getApplicableRules().stream()
+                .map(rule -> rule.unify(atom))
+                .collect(Collectors.toList());
+        if (atom.isRelation()
+                && !((Relation)atom).getUnmappedRolePlayers().isEmpty()) {
+            rules = rules.stream()
+                    .flatMap(rule -> {
+                        Set<Unifier> permutationUnifiers = getPermutationUnifiers(rule.getHead().getAtom());
+                        return permutationUnifiers.stream()
+                                .map(unifier -> new InferenceRule(rule).unify(unifier));
+                    }).collect(Collectors.toList());
+        }
+        return rules.stream().map(rule -> rule.propagateConstraints(getAtom())).iterator();
     }
 
     /**
@@ -387,7 +369,7 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
      * @author Kasper Piskorski
      *
      */
-    private class QueryAnswerIterator implements Iterator<Answer> {
+    private class QueryAnswerIterator extends ReasonerQueryIterator {
 
         private int iter = 0;
         private long answers = 0;
@@ -412,7 +394,8 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
         /**
          * @return stream constructed out of the answer iterator
          */
-        Stream<Answer> hasStream(){
+        @Override
+        public Stream<Answer> hasStream(){
             Iterable<Answer> iterable = () -> this;
             return StreamSupport.stream(iterable.spliterator(), false).distinct().peek(ans -> answers++);
         }

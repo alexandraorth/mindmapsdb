@@ -21,6 +21,7 @@ package ai.grakn.engine.controller;
 import ai.grakn.engine.TaskStatus;
 import ai.grakn.engine.tasks.BackgroundTask;
 import ai.grakn.engine.TaskId;
+import ai.grakn.engine.tasks.TaskConfiguration;
 import ai.grakn.engine.tasks.TaskManager;
 import ai.grakn.engine.tasks.TaskSchedule;
 import ai.grakn.engine.tasks.TaskState;
@@ -43,8 +44,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
+import static ai.grakn.engine.controller.GraqlController.mandatoryQueryParameter;
 import static ai.grakn.engine.tasks.TaskSchedule.recurring;
-import static ai.grakn.util.ErrorMessage.MISSING_MANDATORY_PARAMETERS;
 import static ai.grakn.util.ErrorMessage.UNAVAILABLE_TASK_CLASS;
 import static ai.grakn.util.REST.Request.ID_PARAMETER;
 import static ai.grakn.util.REST.Request.LIMIT_PARAM;
@@ -163,13 +164,13 @@ public class TasksController {
             @ApiImplicitParam(name = "configuration", value = "JSON Object that will be given to the task as configuration.", dataType = "String", paramType = "body")
     })
     private Json createTask(Request request, Response response) {
-        String className = getMandatoryParameter(request, TASK_CLASS_NAME_PARAMETER);
-        String createdBy = getMandatoryParameter(request, TASK_CREATOR_PARAMETER);
-        String runAtTime = getMandatoryParameter(request, TASK_RUN_AT_PARAMETER);
+        String className = mandatoryQueryParameter(request, TASK_CLASS_NAME_PARAMETER);
+        String createdBy = mandatoryQueryParameter(request, TASK_CREATOR_PARAMETER);
+        String runAtTime = mandatoryQueryParameter(request, TASK_RUN_AT_PARAMETER);
         String intervalParam = request.queryParams(TASK_RUN_INTERVAL_PARAMETER);
 
         TaskSchedule schedule;
-        Json configuration;
+        TaskConfiguration configuration;
         try {
             // Get the schedule of the task
             Optional<Duration> optionalInterval = Optional.ofNullable(intervalParam).map(Long::valueOf).map(Duration::ofMillis);
@@ -179,7 +180,7 @@ public class TasksController {
                     .orElse(TaskSchedule.at(time));
 
             // Get the configuration of the task
-            configuration = request.body().isEmpty() ? Json.object() : Json.read(request.body());
+            configuration = TaskConfiguration.of(request.body().isEmpty() ? Json.object() : Json.read(request.body()));
         } catch (Exception e){
             throw new GraknEngineServerException(400, e);
         }
@@ -188,8 +189,8 @@ public class TasksController {
         Class<?> clazz = getClass(className);
 
         // Create and schedule the task
-        TaskState taskState = TaskState.of(clazz, createdBy, schedule, configuration);
-        manager.addTask(taskState);
+        TaskState taskState = TaskState.of(clazz, createdBy, schedule);
+        manager.addLowPriorityTask(taskState, configuration);
 
         // Configure the response
         response.type(APPLICATION_JSON.getMimeType());
@@ -216,20 +217,6 @@ public class TasksController {
         } catch (ClassNotFoundException e) {
             throw new GraknEngineServerException(400, UNAVAILABLE_TASK_CLASS, className);
         }
-    }
-
-
-    /**
-     * Given a {@link Request} object retrieve the value of the {@param parameter} argument. If it is not present
-     * in the request, return a 404 to the client.
-     *
-     * @param request information about the HTTP request
-     * @param parameter value to retrieve from the HTTP request
-     * @return value of the given parameter
-     */
-    private String getMandatoryParameter(Request request, String parameter){
-        return Optional.ofNullable(request.queryParams(parameter)).orElseThrow(() ->
-                new GraknEngineServerException(400, MISSING_MANDATORY_PARAMETERS, parameter));
     }
 
     /**
@@ -259,7 +246,6 @@ public class TasksController {
                 .set("recurring", state.schedule().isRecurring())
                 .set("exception", state.exception())
                 .set("stackTrace", state.stackTrace())
-                .set("engineID", state.engineID() != null ? state.engineID().value() : null)
-                .set("configuration", state.configuration());
+                .set("engineID", state.engineID() != null ? state.engineID().value() : null);
     }
 }

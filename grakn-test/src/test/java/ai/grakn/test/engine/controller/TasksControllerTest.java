@@ -34,7 +34,9 @@ import com.jayway.restassured.response.Response;
 import com.jayway.restassured.specification.RequestSpecification;
 import mjson.Json;
 import org.apache.http.entity.ContentType;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 import spark.Service;
 
 import java.io.IOException;
@@ -42,13 +44,17 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 
+import static ai.grakn.engine.GraknEngineServer.configureSpark;
 import static ai.grakn.engine.TaskStatus.FAILED;
 import static ai.grakn.test.engine.tasks.BackgroundTaskTestUtils.createTask;
-import static ai.grakn.util.ErrorMessage.MISSING_MANDATORY_PARAMETERS;
+import static ai.grakn.util.ErrorMessage.MISSING_MANDATORY_REQUEST_PARAMETERS;
 import static ai.grakn.util.ErrorMessage.UNAVAILABLE_TASK_CLASS;
-
-import static ai.grakn.engine.GraknEngineServer.configureSpark;
-import static ai.grakn.util.REST.Request.*;
+import static ai.grakn.util.REST.Request.ID_PARAMETER;
+import static ai.grakn.util.REST.Request.TASK_CLASS_NAME_PARAMETER;
+import static ai.grakn.util.REST.Request.TASK_CREATOR_PARAMETER;
+import static ai.grakn.util.REST.Request.TASK_RUN_AT_PARAMETER;
+import static ai.grakn.util.REST.Request.TASK_RUN_INTERVAL_PARAMETER;
+import static ai.grakn.util.REST.Request.TASK_STATUS_PARAMETER;
 import static ai.grakn.util.REST.WebPath.Tasks.GET;
 import static ai.grakn.util.REST.WebPath.Tasks.TASKS;
 import static com.jayway.restassured.RestAssured.with;
@@ -58,8 +64,12 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TasksControllerTest {
     private static final int PORT = 4567;
@@ -103,8 +113,8 @@ public class TasksControllerTest {
     public void afterSendingTask_ItReceivedByStorage(){
         send();
 
-        verify(manager, atLeastOnce()).addTask(
-                argThat(argument -> argument.taskClass().equals(ShortExecutionMockTask.class)));
+        verify(manager, atLeastOnce()).addLowPriorityTask(
+                argThat(argument -> argument.taskClass().equals(ShortExecutionMockTask.class)), any());
     }
 
     @Test
@@ -126,7 +136,7 @@ public class TasksControllerTest {
         Instant runAt = now();
         send(Json.object().toString(), defaultParams());
 
-        verify(manager).addTask(argThat(argument -> argument.schedule().runAt().equals(runAt)));
+        verify(manager).addLowPriorityTask(argThat(argument -> argument.schedule().runAt().equals(runAt)), any());
     }
 
     @Test
@@ -141,8 +151,8 @@ public class TasksControllerTest {
                 )
         );
 
-        verify(manager).addTask(argThat(argument -> argument.schedule().interval().isPresent()));
-        verify(manager).addTask(argThat(argument -> argument.schedule().isRecurring()));
+        verify(manager).addLowPriorityTask(argThat(argument -> argument.schedule().interval().isPresent()), any());
+        verify(manager).addLowPriorityTask(argThat(argument -> argument.schedule().isRecurring()), any());
     }
 
     @Test
@@ -155,7 +165,7 @@ public class TasksControllerTest {
         );
 
         String exception = response.getBody().as(Json.class, jsonMapper).at("exception").asString();
-        assertThat(exception, containsString(MISSING_MANDATORY_PARAMETERS.getMessage(TASK_CLASS_NAME_PARAMETER)));
+        assertThat(exception, containsString(MISSING_MANDATORY_REQUEST_PARAMETERS.getMessage(TASK_CLASS_NAME_PARAMETER)));
         assertThat(response.statusCode(), equalTo(400));
     }
 
@@ -169,7 +179,7 @@ public class TasksControllerTest {
         );
 
         String exception = response.getBody().as(Json.class, jsonMapper).at("exception").asString();
-        assertThat(exception, containsString(MISSING_MANDATORY_PARAMETERS.getMessage(TASK_CREATOR_PARAMETER)));
+        assertThat(exception, containsString(MISSING_MANDATORY_REQUEST_PARAMETERS.getMessage(TASK_CREATOR_PARAMETER)));
         assertThat(response.statusCode(), equalTo(400));
     }
 
@@ -183,7 +193,7 @@ public class TasksControllerTest {
         );
 
         String exception = response.getBody().as(Json.class, jsonMapper).at("exception").asString();
-        assertThat(exception, containsString(MISSING_MANDATORY_PARAMETERS.getMessage(TASK_RUN_AT_PARAMETER)));
+        assertThat(exception, containsString(MISSING_MANDATORY_REQUEST_PARAMETERS.getMessage(TASK_RUN_AT_PARAMETER)));
         assertThat(response.statusCode(), equalTo(400));
     }
 
@@ -249,7 +259,6 @@ public class TasksControllerTest {
         assertThat(json.at(TASK_CREATOR_PARAMETER).asString(), equalTo(task.creator()));
         assertThat(json.at(TASK_RUN_AT_PARAMETER).asLong(), equalTo(task.schedule().runAt().toEpochMilli()));
         assertThat(json.at(TASK_STATUS_PARAMETER).asString(), equalTo(task.status().name()));
-        assertThat(json.at("configuration"), equalTo(task.configuration()));
     }
 
     @Test
@@ -357,7 +366,7 @@ public class TasksControllerTest {
         return with().get(String.format("http://%s%s", URI, GET.replace(ID_PARAMETER, taskId.getValue())));
     }
 
-    private class JsonMapper implements ObjectMapper{
+    public static class JsonMapper implements ObjectMapper{
 
         @Override
         public Object deserialize(ObjectMapperDeserializationContext objectMapperDeserializationContext) {

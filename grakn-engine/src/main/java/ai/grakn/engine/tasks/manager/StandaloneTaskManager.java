@@ -19,17 +19,20 @@
 
 package ai.grakn.engine.tasks.manager;
 
-import ai.grakn.engine.cache.EngineCacheProvider;
-import ai.grakn.engine.cache.EngineCacheStandAlone;
-import ai.grakn.engine.tasks.BackgroundTask;
+import ai.grakn.engine.GraknEngineConfig;
 import ai.grakn.engine.TaskId;
+import ai.grakn.engine.lock.LockProvider;
+import ai.grakn.engine.lock.NonReentrantLock;
+import ai.grakn.engine.postprocessing.PostProcessingTask;
+import ai.grakn.engine.postprocessing.UpdatingInstanceCountTask;
+import ai.grakn.engine.tasks.BackgroundTask;
 import ai.grakn.engine.tasks.TaskCheckpoint;
+import ai.grakn.engine.tasks.TaskConfiguration;
 import ai.grakn.engine.tasks.TaskManager;
 import ai.grakn.engine.tasks.TaskSchedule;
 import ai.grakn.engine.tasks.TaskState;
 import ai.grakn.engine.tasks.TaskStateStorage;
 import ai.grakn.engine.tasks.storage.TaskStateInMemoryStore;
-import ai.grakn.engine.GraknEngineConfig;
 import ai.grakn.engine.util.EngineID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 
 import static ai.grakn.engine.TaskStatus.COMPLETED;
@@ -67,7 +70,7 @@ public class StandaloneTaskManager implements TaskManager {
     private final Map<TaskId, BackgroundTask> runningTasks;
 
     private final TaskStateStorage storage;
-    private final ReentrantLock stateUpdateLock;
+    private final Lock stateUpdateLock;
 
     private final ExecutorService executorService;
     private final ScheduledExecutorService schedulingService;
@@ -79,17 +82,16 @@ public class StandaloneTaskManager implements TaskManager {
         runningTasks = new ConcurrentHashMap<>();
 
         storage = new TaskStateInMemoryStore();
-        stateUpdateLock = new ReentrantLock();
+        stateUpdateLock = new NonReentrantLock();
 
         GraknEngineConfig properties = GraknEngineConfig.getInstance();
         schedulingService = Executors.newScheduledThreadPool(1);
         executorService = Executors.newFixedThreadPool(properties.getAvailableThreads());
 
-        EngineCacheProvider.init(EngineCacheStandAlone.getCache());
-    }
-
-    public TaskManager open() {
-        return this;
+        Lock postProcessingLock = new NonReentrantLock();
+        Lock countUpdateLock = new NonReentrantLock();
+        LockProvider.add(PostProcessingTask.LOCK_KEY, () -> postProcessingLock);
+        LockProvider.add(UpdatingInstanceCountTask.LOCK_KEY, () -> countUpdateLock);
     }
 
     @Override
@@ -97,25 +99,19 @@ public class StandaloneTaskManager implements TaskManager {
         executorService.shutdown();
         schedulingService.shutdown();
         runningTasks.clear();
-        EngineCacheProvider.clearCache();
+        LockProvider.clear();
     }
 
     @Override
-    public void addTask(TaskState taskState){
-        storage.newState(taskState);
+    public void addLowPriorityTask(TaskState taskState, TaskConfiguration configuration){
+        addTask(taskState, configuration);
+    }
 
-        // Schedule task to run.
-        Instant now = Instant.now();
-        TaskSchedule schedule = taskState.schedule();
-        long delay = Duration.between(now, taskState.schedule().runAt()).toMillis();
-
-        Runnable taskExecution = submitTaskForExecution(taskState);
-
-        if(schedule.isRecurring()){
-            schedulingService.scheduleAtFixedRate(taskExecution, delay, schedule.interval().get().toMillis(), MILLISECONDS);
-        } else {
-            schedulingService.schedule(taskExecution, delay, MILLISECONDS);
-        }
+    //TODO IMPLEMENT HIGH AND LOW PRIORITY IN STANDALONE MODE
+    @Override
+    public void addHighPriorityTask(TaskState taskState, TaskConfiguration configuration){
+        LOG.info("Standalone mode only has a single priority.");
+        addTask(taskState, configuration);
     }
 
     public void stopTask(TaskId id) {
@@ -151,7 +147,24 @@ public class StandaloneTaskManager implements TaskManager {
         return storage;
     }
 
-    private Runnable executeTask(TaskState task) {
+    private void addTask(TaskState taskState, TaskConfiguration taskConfiguration){
+        storage.newState(taskState);
+
+        // Schedule task to run.
+        Instant now = Instant.now();
+        TaskSchedule schedule = taskState.schedule();
+        long delay = Duration.between(now, taskState.schedule().runAt()).toMillis();
+
+        Runnable taskExecution = submitTaskForExecution(taskState, taskConfiguration);
+
+        if(schedule.isRecurring()){
+            schedulingService.scheduleAtFixedRate(taskExecution, delay, schedule.interval().get().toMillis(), MILLISECONDS);
+        } else {
+            schedulingService.schedule(taskExecution, delay, MILLISECONDS);
+        }
+    }
+
+    private Runnable executeTask(TaskState task, TaskConfiguration configuration) {
         return () -> {
             try {
                 task.markRunning(engineID);
@@ -161,7 +174,7 @@ public class StandaloneTaskManager implements TaskManager {
                 BackgroundTask runningTask = task.taskClass().newInstance();
                 runningTasks.put(task.getId(), runningTask);
 
-                boolean completed = runningTask.start(saveCheckpoint(task), task.configuration());
+                boolean completed = runningTask.start(saveCheckpoint(task), configuration);
 
                 if (completed) {
                     task.markCompleted();
@@ -179,10 +192,10 @@ public class StandaloneTaskManager implements TaskManager {
         };
     }
 
-    private Runnable submitTaskForExecution(TaskState taskState) {
+    private Runnable submitTaskForExecution(TaskState taskState, TaskConfiguration configuration) {
         return () -> {
             if (shouldRunTask(storage.getState(taskState.getId()))) {
-                executorService.submit(executeTask(taskState));
+                executorService.submit(executeTask(taskState, configuration));
             }
         };
     }
