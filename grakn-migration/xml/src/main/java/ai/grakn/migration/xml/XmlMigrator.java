@@ -69,7 +69,7 @@ public class XmlMigrator implements AutoCloseable {
                     .map(Optional::get)
                     .forEach(XmlMigrator::runXml);
         } catch (Throwable throwable){
-            MigrationCLI.die(throwable.getMessage());
+            System.err.println(throwable.getMessage());
         }
     }
     
