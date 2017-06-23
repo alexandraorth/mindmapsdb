@@ -71,7 +71,7 @@ public class XMLMigratorTest {
 
     @Test
     public void whenMigratingXML_CanMigrateXMLAttributesInChildNodes(){
-        String template = "insert $thing isa thing has name for(name in <NAME>) do { if(<\"name.~NAME\"> != null ) do { <\"name.~NAME\">; }}";
+        String template = "insert $thing isa thing has name <NAME[1].\"~NAME\">;";
         migrateXMLWithElement("THING", template);
 
         assertThingHasName("Alice");
@@ -79,7 +79,7 @@ public class XMLMigratorTest {
 
     @Test
     public void whenMigratingXML_CanMigrateXMLTextInChildNodes(){
-        String template = "insert $thing isa thing has name for(name in <NAME>) do { if(<name.textContent> != null ) do { <name.textContent>; }}";
+        String template = "insert $thing isa thing has name <NAME[0].textContent>;";
         migrateXMLWithElement("THING", template);
 
         assertThingHasName("Charlie");
